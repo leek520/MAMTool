@@ -167,7 +167,7 @@ void MainWindow::on_m_start_clicked()
             qApp->processEvents();
             m_loglist->addItem(QString("%1.%2").arg(m_loglist->count()).arg("开始解压."));
             QString code_packet = dir.absolutePath()+"\/"+filename;
-            QString extract_cmd = QString("\"%1\" x -ibck -y -o+ \"%1\" \"%2\"")
+            QString extract_cmd = QString("\"%1\" x -ibck -y -o+ \"%2\" \"%3\"")
                             .arg(DIR_WINRAR)
                             .arg(code_packet)
                             .arg(dir.absolutePath());
@@ -539,11 +539,11 @@ void MainWindow::on_m_build_clicked()
     qApp->processEvents();
     //6.修改加解密
     if (m_cb_jiemi->isChecked()){
-        modify_startup(true);
-    }else{
-        modify_startup(false);
+        m_jiemi = true;
+    }else{       
+        m_jiemi = false;
     }
-
+    modify_startup(m_jiemi);
 
     QString code_path = m_code_path + "/" + m_dir_name;
     //查找目录内工程文件后缀
@@ -582,6 +582,10 @@ void MainWindow::on_m_build_clicked()
 
 void MainWindow::on_m_download_clicked()
 {
+    if (!m_jiemi) {
+        QMessageBox::warning(this, "提示", "程序已加密，请解密后再下载！");
+        return;
+    }
     m_loglist->addItem(QString("%1.%2").arg(m_loglist->count()).arg("开始下载..."));
     qApp->processEvents();
     QString down_cmd = QString("\"%1\" -j0 -f \"%2\"").arg(DIR_KEIL).arg(m_project_path);

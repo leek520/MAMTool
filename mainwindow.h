@@ -94,6 +94,7 @@ private:
 
     QPushButton *m_modfiy_build;
     QPushButton *m_compress_clear;
+    bool m_jiemi;
 };
 
 #endif // MAINWINDOW_H
