@@ -20,7 +20,8 @@
 #include <QFileDialog>
 #include <QListWidget>
 #include <QMessageBox>
-
+#include <QMenuBar>
+#include <QComboBox>
 
 #define DIR_WINRAR      "C:\\Program Files\\WinRAR\\WinRAR.exe"
 #define DIR_CHECK       "C:\\Users\\Administrator\\Desktop\\ChangeName.exe"
@@ -36,6 +37,7 @@ public:
     ~MainWindow();
 
     void setUi();
+    void SetMenu();
     int build_check();
 
 private slots:
@@ -59,6 +61,9 @@ private slots:
     void modify_startup(bool jiemi);
 
     bool deleteDir(const QString &dirName);
+
+    void on_actioncfg_triggered();
+    void cal_pass();
 private:
     QLineEdit *m_srcPath;
     QLineEdit *m_name;
@@ -95,6 +100,10 @@ private:
     QPushButton *m_modfiy_build;
     QPushButton *m_compress_clear;
     bool m_jiemi;
+
+    QComboBox *m_comfact;
+    QLineEdit *m_tippass;
+    QLabel *m_dynpass;
 };
 
 #endif // MAINWINDOW_H

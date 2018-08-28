@@ -4,6 +4,7 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
     setUi();
+    SetMenu();
 }
 
 MainWindow::~MainWindow()
@@ -13,9 +14,13 @@ MainWindow::~MainWindow()
 
 void MainWindow::setUi()
 {
-    resize(500,400);
+    resize(500,420);
+    QTabWidget *w = new QTabWidget();
+    setCentralWidget(w);
     QWidget *main = new QWidget(this);
-    setCentralWidget(main);
+    QWidget *main1 = new QWidget(this);
+    w->addTab(main, "改程序");
+    w->addTab(main1, "算密码");
 
     QVBoxLayout *vbox = new QVBoxLayout();
     main->setLayout(vbox);
@@ -123,6 +128,35 @@ void MainWindow::setUi()
 
     connect(m_modfiy_build, SIGNAL(clicked(bool)), this, SLOT(on_build2_clicked()));
     connect(m_compress_clear, SIGNAL(clicked(bool)), this, SLOT(on_clear2_clicked()));
+
+
+
+
+    //算密码页面设计
+    m_comfact = new QComboBox;
+    m_comfact->addItem("台盛");
+    m_comfact->addItem("鑫磊");
+
+
+    m_tippass = new QLineEdit;
+    m_tippass->setPlaceholderText("提示码");
+    m_dynpass = new QLabel("密码：");
+    m_dynpass->setFixedWidth(100);
+    QHBoxLayout *passbox = new QHBoxLayout(main1);
+    passbox->addWidget(m_comfact);
+    passbox->addWidget(m_tippass);
+    passbox->addWidget(m_dynpass);
+
+    connect(m_tippass, SIGNAL(editingFinished()), this, SLOT(cal_pass()));
+}
+
+void MainWindow::SetMenu()
+{
+    QAction *actioncfg = new QAction("Config", this);
+    connect(actioncfg, SIGNAL(triggered()), this, SLOT(on_actioncfg_triggered()));
+    QMenu *configMenu = this->menuBar()->addMenu("Set");
+    configMenu->addAction(actioncfg);
+
 }
 
 void MainWindow::on_m_start_clicked()
@@ -685,7 +719,72 @@ bool MainWindow::deleteDir(const QString &dirName)
 
 
      return !error;
- }
+}
+
+
+void MainWindow::on_actioncfg_triggered()
+{
+
+}
+
+void MainWindow::cal_pass()
+{
+    int num = m_comfact->currentIndex();
+    unsigned short CalCode, dynpass;
+    unsigned short temp,temp1,temp2,temp3,temp4;
+    unsigned short result1,result2,result3,result4;
+    CalCode = m_tippass->text().toInt();
+    temp1=CalCode%10;	//D
+    temp2=CalCode%100/10;//C
+    temp3=CalCode%1000/100; //B
+    temp4=CalCode/1000;	//A
+
+    switch (num) {
+    case 0:     //台盛
+
+        result4 = (temp4 * 26)%10;//A
+        result3 = (temp3 * 27)%10;//B
+        result2 = (temp2 * 28)%10;//C
+        result1 = (temp1 * 14)%10;//D
+
+        temp = result1;
+        result1 = result4;
+        result4 = temp;
+
+        result4 = (result4+2)%10;//A
+        result3 = (result3+7)%10;//B
+        result2 = (result2+9)%10;//C
+        result1 = (result1+3)%10;//D
+
+        temp = result1;
+        result1 = result4;
+        result4 = temp;
+
+        result4 = (result4+temp4)%10;//A
+        result3 = (result3+temp3)%10;//B
+        result2 = (result2+temp2)%10;//C
+        result1 = (result1+temp1)%10;//D
+
+        dynpass = result1+result2*10+result3*100+result4*1000;
+        break;
+    case 1:     //鑫磊
+
+        temp3 = temp3*9+1;
+        temp2 = temp2*8+1;
+
+        temp4= temp3%10; //
+        temp3/=10; //
+        temp1=temp2/10;
+        temp2%=10; //
+
+        dynpass = temp1+temp2*10+temp3*100+temp4*1000;
+        break;
+    default:
+        break;
+    }
+
+    m_dynpass->setText(QString("密码：%1").arg(dynpass));
+}
 
 
 
