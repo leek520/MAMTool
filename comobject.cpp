@@ -72,13 +72,35 @@ ComObject::ComObject(QObject *parent) :
     com_thread->start();
 
     //连接信号
-    connect(this, SIGNAL(SendMsg(QByteArray)), com, SLOT(SendMsg(QByteArray)));
-    connect(com, SIGNAL(ResponseMsg(QByteArray)), this, SLOT(ResponseMsg(QByteArray)));
-
-    m_preCmd = 0;
-    m_finsh = false;
+    connect(this, SIGNAL(DownLoad_sig(int,int,const QString,int)),
+            com, SLOT(DownLoad_slt(int,int,const QString,int)));
 
 
+}
+
+void ComObject::DownLoad(const int cmd, const int addr, const QString filename, int flag)
+{
+    emit DownLoad_sig(cmd, addr, filename, flag);
+}
+
+
+
+ComDriver::ComDriver(QObject *parent) :
+    QObject(parent)
+{
+
+    //打开窗口
+    m_com = new QSerialPort();
+    m_com->setPortName("COM8");
+    if (!m_com->open(QIODevice::ReadWrite)){
+        return;
+    }
+    m_com->setBaudRate(QSerialPort::Baud9600);
+    m_com->setDataBits(QSerialPort::Data8);
+    m_com->setParity(QSerialPort::NoParity);
+    m_com->setStopBits(QSerialPort::OneStop);
+    m_com->setFlowControl(QSerialPort::NoFlowControl);
+    qDebug()<<"SerialPort is open";
 }
 /**
 * 函数说明：CRC校验
@@ -87,7 +109,7 @@ ComObject::ComObject(QObject *parent) :
 *
 * @return:校验码
 **/
-unsigned int ComObject::CRC16Check(uchar *pchMsg, short wDataLen)
+unsigned int ComDriver::CRC16Check(uchar *pchMsg, short wDataLen)
 {
     unsigned int aTemp,   aNum;
 
@@ -101,100 +123,82 @@ unsigned int ComObject::CRC16Check(uchar *pchMsg, short wDataLen)
     }
     return (gCrcH<<8)|gCrcL;
 }
-
-void ComObject::ResponseMsg(QByteArray dataVar)
-{
-    int cmd = dataVar[1];
-    switch (cmd) {
-    case 0x18:
-        qDebug()<<"CRC error!";
-        break;
-    case 0x20:
-        qDebug()<<"Length error!";
-        break;
-    case 0x22:
-        qDebug()<<"Address error!";
-        break;
-    default:
-        if (m_preCmd == cmd){
-            qDebug()<<"Sucess!";
-            m_finsh = true;
-        }else{
-            qDebug()<<"Noknow error!";
-            m_finsh = false;
-        }
-        break;
-    }
-}
-void ComObject::send(uchar *dataVar, int len)
+bool ComDriver::ComOneManual(const int cmd, const int addr, const uchar *data, const int len)
 {
     int i;
-    QByteArray byArr;
-    byArr.resize(len);
+    bool status;
+    QByteArray send_buf;
+    send_buf.resize(len+6);
+    send_buf[0] = 0x01;
+    send_buf[1] = 0xa0;
+    send_buf[2] = cmd;
+    send_buf[3] = (addr >> 16) & 0xff;
+    send_buf[4] = (addr >> 8) & 0xff;
+    send_buf[5] = (addr >> 0) & 0xff;
+
     for(i=0;i<len;i++) {
-        byArr[i]=dataVar[i];
+        send_buf[i+6] = data[i];
     }
-
     //添加CRC
-    unsigned short CRC = CRC16Check(dataVar, len);
-    byArr[i+0] = (CRC >> 8) & 0xff;
-    byArr[i+1] = (CRC >> 0) & 0xff;
-    emit SendMsg(byArr);
-    m_preCmd = byArr[1];
-}
+    unsigned short CRC = CRC16Check((unsigned char *)send_buf.data(), send_buf.count());
 
-ComDriver::ComDriver(QObject *parent) :
-    QObject(parent)
-{
+    send_buf.append((CRC >> 8) & 0xff);
+    send_buf.append((CRC >> 0) & 0xff);
 
-    //打开窗口
-    m_com = new QSerialPort();
-    m_com->setPortName("COM1");
-    if (!m_com->open(QIODevice::ReadWrite)){
-        return;
+    if (m_com->write(send_buf)>0){
+        while (m_com->waitForReadyRead(WAIT_TIME)){
+            //1、读取并处理串口缓冲区数据
+            QByteArray seial_buff = m_com->readAll();
+            unsigned char r_cmd = (unsigned char)seial_buff[1];
+            switch (r_cmd) {
+            case 0x18:
+                qDebug()<<"CRC error!";
+                status = false;
+                break;
+            case 0x20:
+                qDebug()<<"Length error!";
+                status = false;
+                break;
+            case 0x22:
+                qDebug()<<"Address error!";
+                status = false;
+                break;
+            case 0xa0:
+                qDebug()<<"Sucess!";
+                status = true;
+                break;
+            default:
+                qDebug()<<"Noknow error!";
+                status = false;
+                break;
+            }
+
+        }
     }
-    m_com->setBaudRate(QSerialPort::Baud9600);
-    m_com->setDataBits(QSerialPort::Data8);
-    m_com->setParity(QSerialPort::NoParity);
-    m_com->setStopBits(QSerialPort::OneStop);
-    m_com->setFlowControl(QSerialPort::NoFlowControl);
+    return status;
 
 }
 
-/**
-* 函数说明：发送数据函数
-*
-* @param:待发送的数据
-*
-* @return:是否成功
-* **/
-bool ComDriver::SendMsg(QByteArray dataVar)
+
+
+void ComDriver::DownLoad_slt(const int cmd, const int addr, const QString filename, int flag)
 {
     bool status;
-    status = m_com->write(dataVar);
-    if(status<0)
-        return false;
+    //定位
+    status = ComOneManual(0x5d, addr, NULL, 0);
+    if (status){
+        //定位
+        status = ComOneManual(0x5d, addr, NULL, 0);
+        if (status){
+            //擦除
+            status = ComOneManual(cmd, addr, NULL, 0);
+            if (status){
+                //打开数据filename
 
-    status = ReceiveMsg();
-}
-/**
-* 函数说明：接收数据函数
-*
-* @param:
-*
-* @return:接收到的数据是否有效
-* **/
-bool ComDriver::ReceiveMsg()
-{
-    bool receive_status = false;
+                //写入数据
+                status = ComOneManual(0x5b, addr, NULL, 0);
 
-    while (m_com->waitForReadyRead(WAIT_TIME))
-    {
-        //1、读取并处理串口缓冲区数据
-        QByteArray seial_buff = m_com->readAll();
-        emit ResponseMsg(seial_buff);
+            }
+        }
     }
-
-    return receive_status;
-
 }

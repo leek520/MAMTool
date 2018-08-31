@@ -123,7 +123,7 @@ private:
     QPushButton *m_downtable;
 
     ComObject *m_com_obj;
-    uchar send_buf[512];
+
 };
 
 #endif // MAINWINDOW_H

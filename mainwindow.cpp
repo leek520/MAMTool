@@ -857,10 +857,6 @@ void MainWindow::down_row(int row)
     int type = ((QComboBox *)(m_table->cellWidget(row, 0)))->currentIndex();
     //起始地址
     QString addr = m_table->item(row, 1)->text();
-//    addr = addr.replace(QRegExp("^0+"), "");
-//    if (addr=="")
-//        addr = "0";
-//    int address = addr.toInt();
     bool ok;
     int address = addr.toInt(&ok, 16);
     //擦除大小
@@ -898,25 +894,7 @@ void MainWindow::down_row(int row)
         cmd = 0x58;
         break;
     }
-
-
-    send_buf[0] = 0x01;
-    send_buf[1] = 0xa0;
-    send_buf[3] = (address >> 16) & 0xff;
-    send_buf[4] = (address >> 8) & 0xff;
-    send_buf[5] = (address >> 0) & 0xff;
-
-    //定位
-    send_buf[2] = 0x5d;
-    m_com_obj->send(send_buf, 6);
-    //擦除
-    send_buf[2] = cmd;
-    m_com_obj->send(send_buf, 6);
-    //写入
-    send_buf[0]=0x11;
-    send_buf[1]=0x22;
-    send_buf[2]=0x33;
-    //m_com_obj->send(send_buf, 3);
+    m_com_obj->DownLoad(cmd, address, filename, 0);
 }
 
 int MainWindow::pack_data(int cmd, int addr, QString *filename, QByteArray *data)
