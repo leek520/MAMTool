@@ -19,8 +19,10 @@ void MainWindow::setUi()
     setCentralWidget(w);
     QWidget *main = new QWidget(this);
     QWidget *main1 = new QWidget(this);
-    w->addTab(main, "改程序");
-    w->addTab(main1, "算密码");
+    QWidget *main2 = new QWidget(this);
+    w->addTab(main, "程序修改");
+    w->addTab(main1, "密码计算");
+    w->addTab(main2, "下载图片");
 
     QVBoxLayout *vbox = new QVBoxLayout();
     main->setLayout(vbox);
@@ -148,6 +150,31 @@ void MainWindow::setUi()
     passbox->addWidget(m_dynpass);
 
     connect(m_tippass, SIGNAL(editingFinished()), this, SLOT(cal_pass()));
+
+    //bmp图片的c文件处理
+
+    QGridLayout *tgbox = new QGridLayout(main2);
+    m_table = new QTableWidget();
+
+    m_table->setColumnCount(5);
+
+    m_table->horizontalHeader()->setStretchLastSection(true);//关键
+    m_table->setHorizontalHeaderLabels(QStringList()<<"操作"<<"起始地址"<<"擦除大小"<<"文件"<<"状态");
+
+    m_insert = new QPushButton("添加");
+    m_delete = new QPushButton("删除");
+    m_downtable = new QPushButton("下载");
+    connect(m_insert, SIGNAL(clicked(bool)), this, SLOT(on_insert_clicked()));
+    connect(m_delete, SIGNAL(clicked(bool)), this, SLOT(on_delete_clicked()));
+    connect(m_downtable, SIGNAL(clicked(bool)), this, SLOT(on_downtable_clicked()));
+
+
+    tgbox->addWidget(m_table,0,0,1,3);
+    tgbox->addWidget(m_insert,1,0,1,1);
+    tgbox->addWidget(m_delete,1,1,1,1);
+    tgbox->addWidget(m_downtable,1,2,1,1);
+
+    m_com_obj = new ComObject();
 }
 
 void MainWindow::SetMenu()
@@ -785,6 +812,118 @@ void MainWindow::cal_pass()
 
     m_dynpass->setText(QString("密码：%1").arg(dynpass));
 }
+
+void MainWindow::on_insert_clicked()
+{
+    int cur_num = m_table->currentRow();
+    if (cur_num<0)
+        cur_num = m_table->rowCount();
+
+    m_table->insertRow(cur_num);
+
+    QComboBox *item0 = new QComboBox();
+    item0->addItems(QStringList()<<"无压缩图片"<<"压缩图片");
+    QComboBox *item2 = new QComboBox();
+    item2->addItems(QStringList()<<"4K"<<"8K"<<"16K"<<"20K"<<"252K"<<"1M");
+    QTableWidgetItem *item1 = new QTableWidgetItem("000000");
+    item1->setTextAlignment(Qt::AlignCenter);
+    QTableWidgetItem *item3 = new QTableWidgetItem();
+    item1->setTextAlignment(Qt::AlignCenter);
+    m_table->setCellWidget(cur_num, 0, item0);
+    m_table->setItem(cur_num, 1, item1);
+    m_table->setCellWidget(cur_num, 2, item2);
+    m_table->setItem(cur_num, 3, item3);
+}
+
+void MainWindow::on_delete_clicked()
+{
+    int cur_num = m_table->currentRow();
+    if (cur_num>=0)
+        m_table->removeRow(cur_num);
+}
+
+void MainWindow::on_downtable_clicked()
+{
+
+
+    down_row(0);
+
+}
+
+void MainWindow::down_row(int row)
+{
+    int cmd;
+    //下载类型
+    int type = ((QComboBox *)(m_table->cellWidget(row, 0)))->currentIndex();
+    //起始地址
+    QString addr = m_table->item(row, 1)->text();
+//    addr = addr.replace(QRegExp("^0+"), "");
+//    if (addr=="")
+//        addr = "0";
+//    int address = addr.toInt();
+    bool ok;
+    int address = addr.toInt(&ok, 16);
+    //擦除大小
+    int erase_size = ((QComboBox *)(m_table->cellWidget(row, 2)))->currentIndex();
+    //图片位置
+    QString filename = m_table->item(row, 3)->text();
+
+    switch (type) {
+    case 0:
+        type = 0;
+        break;
+    default:
+        break;
+    }
+    switch (erase_size) {
+    case 0: //4k
+        cmd = 0x57;
+        break;
+    case 1: //8k
+        cmd = 0x58;
+        break;
+    case 2: //16K
+        cmd = 0x59;
+        break;
+    case 3: //20K
+        cmd = 0x5c;
+        break;
+    case 4: //252k
+        cmd = 0x5f;
+        break;
+    case 5: //1M
+        cmd = 0x5a;
+        break;
+    default:
+        cmd = 0x58;
+        break;
+    }
+
+
+    send_buf[0] = 0x01;
+    send_buf[1] = 0xa0;
+    send_buf[3] = (address >> 16) & 0xff;
+    send_buf[4] = (address >> 8) & 0xff;
+    send_buf[5] = (address >> 0) & 0xff;
+
+    //定位
+    send_buf[2] = 0x5d;
+    m_com_obj->send(send_buf, 6);
+    //擦除
+    send_buf[2] = cmd;
+    m_com_obj->send(send_buf, 6);
+    //写入
+    send_buf[0]=0x11;
+    send_buf[1]=0x22;
+    send_buf[2]=0x33;
+    //m_com_obj->send(send_buf, 3);
+}
+
+int MainWindow::pack_data(int cmd, int addr, QString *filename, QByteArray *data)
+{
+
+}
+
 
 
 

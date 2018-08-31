@@ -22,6 +22,10 @@
 #include <QMessageBox>
 #include <QMenuBar>
 #include <QComboBox>
+#include <QTablewidget>
+#include <QHeaderView>
+
+#include "comobject.h"
 
 #define DIR_WINRAR      "C:\\Program Files\\WinRAR\\WinRAR.exe"
 #define DIR_CHECK       "C:\\Users\\Administrator\\Desktop\\ChangeName.exe"
@@ -64,6 +68,14 @@ private slots:
 
     void on_actioncfg_triggered();
     void cal_pass();
+
+    void on_insert_clicked();
+    void on_delete_clicked();
+    void on_downtable_clicked();
+
+private:
+    void down_row(int row);
+    int pack_data(int cmd, int addr, QString *filename, QByteArray *data);
 private:
     QLineEdit *m_srcPath;
     QLineEdit *m_name;
@@ -104,6 +116,14 @@ private:
     QComboBox *m_comfact;
     QLineEdit *m_tippass;
     QLabel *m_dynpass;
+
+    QTableWidget *m_table;
+    QPushButton *m_insert;
+    QPushButton *m_delete;
+    QPushButton *m_downtable;
+
+    ComObject *m_com_obj;
+    uchar send_buf[512];
 };
 
 #endif // MAINWINDOW_H
