@@ -36,7 +36,7 @@ private:
     QStringList dataStr;
     int cur_pos;
     int com_status;
-    int file_count;
+    int file_byte_count;
     int send_count;
     int receive_count;
     QSerialPort *m_com;

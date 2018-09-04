@@ -988,7 +988,8 @@ void MainWindow::on_insert_clicked()
     item2->addItems(m_flashSize);
     item2->setCurrentIndex(3);
 
-    QTableWidgetItem *item3 = new QTableWidgetItem("D:\\2-Work\\0-Day_work\\leek\\xinlei_two\\first.c");
+    QTableWidgetItem *item3 = new QTableWidgetItem("C:/Users/leek/Desktop/data.ini"/*"D:\\2-Work\\0-Day_work\\leek\\xinlei_two\\first.c"*/);
+
     item3->setToolTip(item3->text());
 
     m_table->setCellWidget(cur_num, 0, item0);
@@ -1020,6 +1021,8 @@ void MainWindow::on_downtable_clicked()
 
     pStatusBar->show();
     m_progresstext->setText(QString("%1/%2").arg(1).arg(row_cnt));
+    pProgressBar->setFormat(QString("%1%").arg(0));
+    pProgressBar->setValue(0);
     down_row(0);
 }
 

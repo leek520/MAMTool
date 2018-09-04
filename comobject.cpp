@@ -167,21 +167,21 @@ bool ComDriver::SendMsg(const int cmd, const int addr, const uchar *data, const 
     }
 }
 
-bool ComDriver::FetchData(uchar *data, int *len, int stat_pos)
+bool ComDriver::FetchData(uchar *data, int *len, int start_pos)
 {
     int value;
     bool ok;
     int i = 0, pos = 0;
     //判断是否已经取完txt数据
-    if (stat_pos >= file_count*2){
+    if (start_pos >= file_byte_count){
         return false;
     }
     while (1){
         if (dtype == 0){
-            pos = (stat_pos+i)/2;
-            if (pos >= file_count)
+            pos = (start_pos+i)/2;
+            if (pos >= dataStr.count())
                 break;
-            qDebug()<<pos<<stat_pos<<i<<dataStr[pos];
+            qDebug()<<pos<<start_pos<<i<<dataStr[pos];
             if (dataStr[pos].indexOf("0x")>-1 || dataStr[pos].indexOf("0X")>-1){
                 value = dataStr[pos].toInt(&ok, 16);
             }else{
@@ -189,17 +189,28 @@ bool ComDriver::FetchData(uchar *data, int *len, int stat_pos)
             }
             data[i++] =(uchar)((value >> 0) & 0xff);
             data[i++] = (uchar)((value >> 8) & 0xff);
-        }else if (dtype == 1 | dtype == 3){
-            pos = stat_pos+i;
-            if (pos >= file_count)
+        }else if (dtype == 1){
+            pos = start_pos + i;
+            if (pos >= dataStr.count())
                 break;
-            qDebug()<<pos<<stat_pos<<i<<dataStr[pos];
+            qDebug()<<pos<<start_pos<<i<<dataStr[pos];
             if (dataStr[pos].indexOf("0x")>-1 || dataStr[pos].indexOf("0X")>-1){
                 value = dataStr[pos].toInt(&ok, 16);
             }else{
                 value = dataStr[pos].toInt(&ok, 10);
             }
             data[i++] =(uchar)((value >> 0) & 0xff);
+        }else if(dtype == 3){
+            pos = (start_pos + i) / 128;
+            if (pos >= dataStr.count())
+                break;
+            qDebug()<<pos<<start_pos<<i<<dataStr[pos];
+            char *szU8 = new char[128];
+            memset(szU8, 0, 128);
+            QStringToMultiByte(dataStr[pos+0], szU8, len);
+            i += 128;
+            memcpy(data, (uchar *)(szU8+i*sizeof(uchar)), 128);
+
         }
         if (i>=256)
             break;
@@ -219,7 +230,7 @@ bool ComDriver::OpenFile(QString name)
         }
         QTextStream txtInput(&f);
         QString tmpStr = txtInput.readAll();
-        if (dtype<2){   //压缩和无压缩图片的文件处理
+        if (dtype ==0 | dtype == 1){   //压缩和无压缩图片的文件处理
             //QFileInfo infile(m_filename);
             //QString name = infile.baseName();       //获取前缀名
             QRegExp rx1("static GUI_CONST_STORAGE.+\n([.\n]+)GUI_CONST_STORAGE");
@@ -251,25 +262,24 @@ bool ComDriver::OpenFile(QString name)
                 dataStr.push_back(tmp);
                 pos += rx.matchedLength();
             }
-        }else if (dtype == 3){      //菜单文件的处理
-            QStringList strList = tmpStr.split("\n");
-            char *szU8 = new char[128];
-            int len;
-            for (int j=0;j<strList.count();j++){
-                QStringToMultiByte(strList[j], szU8, &len);
-                for(int k=0;k<128;k++){
-                    dataStr.push_back(QString("%1").arg(szU8[k]));
-                }
+            if (dtype == 0){
+                file_byte_count = dataStr.count() * 2;
+            }else{
+                file_byte_count = dataStr.count();
             }
+        }else if (dtype == 3){      //菜单文件的处理:一行128字节
+            dataStr = tmpStr.split("\n");
+            file_byte_count = dataStr.count() * 128;
         }
         f.close();
-        file_count = dataStr.count();
+
     }
 }
 
 int ComDriver::QStringToMultiByte(QString str, char *out, int *len)
 {
     char *szU8 = new char[512];
+    memset(szU8, 0, 512);
     // unicode to UTF8
     //wchar_t* wszString = ret;
     //wchar_t* wszString = L"5号端子功能";
@@ -394,28 +404,7 @@ void ComDriver::DownLoad_slt(const int type, const int cmd, const int addr, cons
     send_count = 0;
     receive_count = 0;
     SendMsg(0x5d, addr, NULL, 0);
-//    if (type == 3){
-////        QString fileName = "5号端子功能";
-////        // unicode to UTF8
-////        //wchar_t* wszString = ret;
-////        //wchar_t* wszString = L"5号端子功能";
-////        const wchar_t * wszString = reinterpret_cast<const wchar_t *>(fileName.utf16());
-////        //预转换，得到所需空间的大小，这次用的函数和上面名字相反
-////        int u8Len = ::WideCharToMultiByte(CP_UTF8, NULL, wszString, wcslen(wszString), NULL, 0, NULL, NULL);
-////        //同上，分配空间要给'\0'留个空间
-////        //UTF8虽然是Unicode的压缩形式，但也是多字节字符串，所以可以以char的形式保存
-////        char* szU8 = new char[u8Len + 1];
-////        //转换
-////        //unicode版对应的strlen是wcslen
-////        ::WideCharToMultiByte(CP_UTF8, NULL, wszString, wcslen(wszString), szU8, u8Len, NULL, NULL);
-////        //最后加上'\0'
-////        szU8[u8Len] = '\0';
-//        QString fileName = "5号端子功能";
-//        char *szU8 = new char[256];
-//        int len;
-//        QStringToMultiByte(fileName, szU8, &len);
-//        SendMsg(0x5d, addr, (uchar *)szU8, len);
-//    }
+
 }
 
 void ComDriver::ReceiveMsg()
@@ -425,6 +414,7 @@ void ComDriver::ReceiveMsg()
     uchar data[512];
     int len;
     bool f_status;
+    memset(data, 0, 512);
     QByteArray seial_buff = m_com->readAll();
     if(!seial_buff.isEmpty())
     {
@@ -488,11 +478,8 @@ void ComDriver::ReceiveMsg()
             break;
         case 0x5b:
             if (status){
-                if (dtype == 0){
-                    emit ResProgress_sig((cur_pos*100)/(2*file_count));
-                }else if (dtype == 1){
-                    emit ResProgress_sig((cur_pos*100)/(file_count));
-                }
+                emit ResProgress_sig((cur_pos*100)/file_byte_count);
+
                 qDebug()<<"Down part success!";
                 f_status = FetchData(data, &len, cur_pos);
                 if (f_status){
