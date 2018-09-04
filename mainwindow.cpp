@@ -14,18 +14,19 @@ MainWindow::~MainWindow()
 
 void MainWindow::setUi()
 {
-    resize(500,420);
+    resize(500,450);
     QTabWidget *w = new QTabWidget();
     setCentralWidget(w);
-    QWidget *main = new QWidget(this);
+    QWidget *main0 = new QWidget(this);
     QWidget *main1 = new QWidget(this);
     QWidget *main2 = new QWidget(this);
-    w->addTab(main, "程序修改");
+
+    w->addTab(main0, "程序修改");
     w->addTab(main1, "密码计算");
-    w->addTab(main2, "下载图片");
+    w->addTab(main2, "flash下载");
 
     QVBoxLayout *vbox = new QVBoxLayout();
-    main->setLayout(vbox);
+    main0->setLayout(vbox);
 
     QHBoxLayout *hbox = new QHBoxLayout();
     QString currentPath = QDir::currentPath();
@@ -131,7 +132,9 @@ void MainWindow::setUi()
     connect(m_modfiy_build, SIGNAL(clicked(bool)), this, SLOT(on_build2_clicked()));
     connect(m_compress_clear, SIGNAL(clicked(bool)), this, SLOT(on_clear2_clicked()));
 
-
+    m_winRARCfg = DIR_WINRAR;
+    m_keilCfg = DIR_KEIL;
+    m_checkCfg = DIR_CHECK;
 
 
     //算密码页面设计
@@ -151,38 +154,94 @@ void MainWindow::setUi()
 
     connect(m_tippass, SIGNAL(editingFinished()), this, SLOT(cal_pass()));
 
-    //bmp图片的c文件处理
+
+
+    //flash下载页面
 
     QGridLayout *tgbox = new QGridLayout(main2);
     m_table = new QTableWidget();
 
-    m_table->setColumnCount(5);
-
+    m_table->setColumnCount(4);
+    m_table->setColumnWidth(0, 90);
+    m_table->setColumnWidth(1, 150);
+    m_table->setColumnWidth(2, 60);
     m_table->horizontalHeader()->setStretchLastSection(true);//关键
     m_table->setHorizontalHeaderLabels(QStringList()<<"操作"<<"起始地址"<<"擦除大小"<<"文件"<<"状态");
 
+    m_exportcfg = new QPushButton("保存配置");
+    m_exportcfg->setFixedHeight(40);
+    m_inportcfg = new QPushButton("载入配置");
+    m_inportcfg->setFixedHeight(40);
     m_insert = new QPushButton("添加");
+    m_insert->setFixedHeight(40);
     m_delete = new QPushButton("删除");
+    m_delete->setFixedHeight(40);
     m_downtable = new QPushButton("下载");
+    m_downtable->setFixedHeight(40);
+    connect(m_exportcfg, SIGNAL(clicked(bool)), this, SLOT(on_exportcfg_clicked()));
+    connect(m_inportcfg, SIGNAL(clicked(bool)), this, SLOT(on_inportcfg_clicked()));
     connect(m_insert, SIGNAL(clicked(bool)), this, SLOT(on_insert_clicked()));
     connect(m_delete, SIGNAL(clicked(bool)), this, SLOT(on_delete_clicked()));
     connect(m_downtable, SIGNAL(clicked(bool)), this, SLOT(on_downtable_clicked()));
+    connect(m_table, SIGNAL(itemDoubleClicked(QTableWidgetItem*)),
+            this, SLOT(SetFilePath(QTableWidgetItem*)));
 
 
-    tgbox->addWidget(m_table,0,0,1,3);
-    tgbox->addWidget(m_insert,1,0,1,1);
-    tgbox->addWidget(m_delete,1,1,1,1);
-    tgbox->addWidget(m_downtable,1,2,1,1);
+    tgbox->addWidget(m_table,0,0,1,5);
+    tgbox->addWidget(m_exportcfg,1,0,1,1);
+    tgbox->addWidget(m_inportcfg,1,1,1,1);
+    tgbox->addWidget(m_insert,1,2,1,1);
+    tgbox->addWidget(m_delete,1,3,1,1);
+    tgbox->addWidget(m_downtable,1,4,1,1);
 
-    m_com_obj = new ComObject();
+    m_com_obj = NULL;
+    m_ComPort = "COM1";
+    m_baudRate = 115200;
+    m_flashType<<"无压缩图片"<<"压缩图片"<<"宋体32字库"<<"菜单";
+    m_flashAddr<<"Run(300000)"<<"User(30a000)"
+                <<"Fact(346000)"<<"Calc(314000)"
+                <<"Block(31e000)"<<"Hard(30f000)"
+                <<"Maint(328000)"<<"Vsd(34b000)"
+                <<"Touch(341000)"<<"TimePress(337000)"
+                <<"RunStop(33c000)"<<"Fault(323000)"
+                <<"MVSD(305000)"<<"FVSD(32d000)"
+                <<"Fact(346000)"<<"Calc(314000)"
+                <<"Data(319000)"<<"SetVSD(3c0000)"
+                <<"Mode(378000)"<<"Return(332000)"
+                <<"First(100000)"<<"32CharLib(000000)"
+                <<"Stop(200000)"<<"Load1(23f000)"
+                <<"Load2(27e000)"<<"Unld1(2bd000)"
+                <<"Unld2(37d000)"<<"Fan1(36e000)"
+                <<"Fan2(373000)";
+    m_flashSize<<"4K"<<"8K"<<"16K"<<"20K"<<"252K"<<"1M";
+
+    pStatusBar = new QStatusBar();
+    pStatusBar->hide();
+    setStatusBar(pStatusBar);
+    pProgressBar = new QProgressBar();
+    pProgressBar->setAlignment(Qt::AlignCenter);
+    pProgressBar->setRange(0,100);
+
+    QLabel *pLabel = new QLabel();
+    m_progresstext = new QLabel();
+    pLabel->setText("请稍候...");
+
+    pStatusBar->addWidget(pLabel);//添加到状态栏的左边
+    pStatusBar->addWidget(pProgressBar);
+    pStatusBar->addWidget(m_progresstext);//添加到状态栏的左边
+
+
 }
 
 void MainWindow::SetMenu()
 {
-    QAction *actioncfg = new QAction("Config", this);
+    QAction *actioncfg = new QAction("路径设置", this);
+    QAction *actioncom = new QAction("串口设置", this);
+    connect(actioncom, SIGNAL(triggered()), this, SLOT(on_actioncom_triggered()));
     connect(actioncfg, SIGNAL(triggered()), this, SLOT(on_actioncfg_triggered()));
-    QMenu *configMenu = this->menuBar()->addMenu("Set");
+    QMenu *configMenu = this->menuBar()->addMenu("配置");
     configMenu->addAction(actioncfg);
+    configMenu->addAction(actioncom);
 
 }
 
@@ -229,7 +288,7 @@ void MainWindow::on_m_start_clicked()
             m_loglist->addItem(QString("%1.%2").arg(m_loglist->count()).arg("开始解压."));
             QString code_packet = dir.absolutePath()+"\/"+filename;
             QString extract_cmd = QString("\"%1\" x -ibck -y -o+ \"%2\" \"%3\"")
-                            .arg(DIR_WINRAR)
+                            .arg(m_winRARCfg)
                             .arg(code_packet)
                             .arg(dir.absolutePath());
             qDebug() <<extract_cmd;
@@ -280,7 +339,7 @@ void MainWindow::on_m_start_clicked()
 
 void MainWindow::on_m_check_clicked()
 {
-    QFileInfo check_tool(DIR_CHECK);
+    QFileInfo check_tool(m_checkCfg);
     qDebug()<<check_tool.absolutePath()<<m_code_path+"\\"+check_tool.fileName();
     QFile::copy(check_tool.filePath(), m_code_path+"\\"+check_tool.fileName());
 
@@ -294,7 +353,7 @@ void MainWindow::on_m_compress_clicked()
 {
     QString code_dir = m_code_path+"\/"+m_dir_name;
     QString packet_cmd = QString("\"%1\" a -ep1 -r -ibck -o+ \"%2\" \"%3\"")
-                    .arg(DIR_WINRAR)
+                    .arg(m_winRARCfg)
                     .arg(code_dir+".rar")
                     .arg(code_dir);
     qDebug() <<packet_cmd;
@@ -632,7 +691,7 @@ void MainWindow::on_m_build_clicked()
     m_hexFileTime = QDateTime::currentDateTime().toTime_t();
     m_project_path = SuffixInfoList[0].absoluteFilePath();
     //QString build_cmd = QString("%1 -j0 -r %2 -o build_log.txt").arg(DIR_KEIL).arg(project_path);
-    QString build_cmd = QString("\"%1\" -j0 -b \"%2\"").arg(DIR_KEIL).arg(m_project_path);
+    QString build_cmd = QString("\"%1\" -j0 -b \"%2\"").arg(m_keilCfg).arg(m_project_path);
     //这里的编译选项 -r:rebuild,-b:build
     QProcess pro(0);
     pro.execute(build_cmd);
@@ -751,6 +810,99 @@ bool MainWindow::deleteDir(const QString &dirName)
 
 void MainWindow::on_actioncfg_triggered()
 {
+    m_cfgDialog = new QDialog();
+    m_cfgDialog->setWindowTitle("路径设置");
+    m_cfgDialog->resize(300,150);
+    QGridLayout *gridbox = new QGridLayout(m_cfgDialog);
+
+    m_tableCfg = new QTableWidget(3,1);
+    m_tableCfg->setToolTip("双击更改程序默认位置！");
+    QTableWidgetItem *item = new QTableWidgetItem(m_winRARCfg);
+    m_tableCfg->setItem(0, 0, item);
+    item = new QTableWidgetItem(m_keilCfg);
+    m_tableCfg->setItem(1, 0, item);
+    item = new QTableWidgetItem(m_checkCfg);
+    m_tableCfg->setItem(2, 0, item);
+
+    m_tableCfg->horizontalHeader()->setStretchLastSection(true);//关键
+    m_tableCfg->setVerticalHeaderLabels(QStringList()<<"WinRAR路径"<<"Keil路径"<<"Check路径");
+    m_tableCfg->horizontalHeader()->hide();
+
+
+    QPushButton *ok = new QPushButton("Ok");
+    QPushButton *cancel = new QPushButton("Cancel");
+    connect(ok, SIGNAL(clicked()), m_cfgDialog, SLOT(accept()));
+    connect(cancel, SIGNAL(clicked()), m_cfgDialog, SLOT(reject()));
+
+    gridbox->addWidget(m_tableCfg, 0, 0, 1, 2);
+    gridbox->addWidget(ok, 1, 0);
+    gridbox->addWidget(cancel, 1, 1);
+    int resutl = m_cfgDialog->exec();
+    if (resutl == QDialog::Accepted)
+    {
+        m_winRARCfg = m_tableCfg->item(0,0)->text();
+        m_keilCfg = m_tableCfg->item(1,0)->text();
+        m_checkCfg = m_tableCfg->item(2,0)->text();
+        QFileInfo file1(m_winRARCfg);
+        if (!file1.exists()){
+            QMessageBox::information(this, "提示", "winRAR路径错误！");
+            QTimer::singleShot(100,this, SLOT(on_actioncfg_triggered()));
+            return;
+        }
+        QFileInfo file2(m_keilCfg);
+        if (!file2.exists()){
+            QMessageBox::information(this, "提示", "Keil路径错误！");
+            QTimer::singleShot(100,this, SLOT(on_actioncfg_triggered()));
+            return;
+        }
+        QFileInfo file3(m_checkCfg);
+        if (!file3.exists()){
+            QMessageBox::information(this, "提示", "Check路径错误！");
+            QTimer::singleShot(100,this, SLOT(on_actioncfg_triggered()));
+            return;
+        }
+        qDebug() << "You Choose Ok";
+    }
+    else
+    {
+        qDebug() << "You Choose Cancel";
+    }
+}
+
+void MainWindow::on_actioncom_triggered()
+{
+    m_comDialog = new QDialog();
+    m_comDialog->setWindowTitle("通讯设置");
+    m_comDialog->resize(200,150);
+    QGridLayout *gridbox = new QGridLayout(m_comDialog);
+
+    QComboBox *com = new QComboBox();
+    com->addItems(QStringList()<<"COM1"<<"COM2"<<"COM3"<<"COM4"
+                                <<"COM5"<<"COM6"<<"COM7"
+                                <<"COM8"<<"COM9");
+    QComboBox *baud = new QComboBox();
+    baud->addItems(QStringList()<<"9600"<<"115200");
+    QPushButton *ok = new QPushButton("Ok");
+    QPushButton *cancel = new QPushButton("Cancel");
+    connect(ok, SIGNAL(clicked()), m_comDialog, SLOT(accept()));
+    connect(cancel, SIGNAL(clicked()), m_comDialog, SLOT(reject()));
+
+    gridbox->addWidget(com, 0, 0);
+    gridbox->addWidget(baud, 0, 1);
+    gridbox->addWidget(ok, 1, 0);
+    gridbox->addWidget(cancel, 1, 1);
+    int resutl = m_comDialog->exec();
+    if (resutl == QDialog::Accepted)
+    {
+        m_ComPort = com->currentText();
+        m_baudRate = baud->currentText().toInt();
+        qDebug() << "You Choose Ok";
+    }
+    else
+    {
+        qDebug() << "You Choose Cancel";
+    }
+
 
 }
 
@@ -816,23 +968,34 @@ void MainWindow::cal_pass()
 void MainWindow::on_insert_clicked()
 {
     int cur_num = m_table->currentRow();
-    if (cur_num<0)
+    if (cur_num<0){
         cur_num = m_table->rowCount();
+    }else{
+        cur_num = cur_num + 1;
+    }
 
     m_table->insertRow(cur_num);
 
     QComboBox *item0 = new QComboBox();
-    item0->addItems(QStringList()<<"无压缩图片"<<"压缩图片");
+    item0->addItems(m_flashType);
+    item0->setCurrentIndex(1);
+    //connect(item0, SIGNAL(currentIndexChanged(int)), this, SLOT(SetStartAddress(int)));
+    QComboBox *item1 = new QComboBox();
+    item1->addItems(m_flashAddr);
+    item1->setEditable(true);
+    //connect(item1, SIGNAL(currentIndexChanged(int)), this, SLOT(SetEraseSize(int)));
     QComboBox *item2 = new QComboBox();
-    item2->addItems(QStringList()<<"4K"<<"8K"<<"16K"<<"20K"<<"252K"<<"1M");
-    QTableWidgetItem *item1 = new QTableWidgetItem("000000");
-    item1->setTextAlignment(Qt::AlignCenter);
-    QTableWidgetItem *item3 = new QTableWidgetItem();
-    item1->setTextAlignment(Qt::AlignCenter);
+    item2->addItems(m_flashSize);
+    item2->setCurrentIndex(3);
+
+    QTableWidgetItem *item3 = new QTableWidgetItem("D:\\2-Work\\0-Day_work\\leek\\xinlei_two\\first.c");
+    item3->setToolTip(item3->text());
+
     m_table->setCellWidget(cur_num, 0, item0);
-    m_table->setItem(cur_num, 1, item1);
+    m_table->setCellWidget(cur_num, 1, item1);
     m_table->setCellWidget(cur_num, 2, item2);
     m_table->setItem(cur_num, 3, item3);
+
 }
 
 void MainWindow::on_delete_clicked()
@@ -844,11 +1007,141 @@ void MainWindow::on_delete_clicked()
 
 void MainWindow::on_downtable_clicked()
 {
+    if (m_com_obj == NULL){
+        m_com_obj = new ComObject(m_ComPort, m_baudRate);
+        connect(m_com_obj, SIGNAL(ResProgress_sig(int)),
+                this, SLOT(ResProgress_slt(int)));
+    }
 
+    int row_cnt = m_table->rowCount();
+    if (row_cnt<=0){
+        return;
+    }
 
+    pStatusBar->show();
+    m_progresstext->setText(QString("%1/%2").arg(1).arg(row_cnt));
     down_row(0);
+}
+
+void MainWindow::ResProgress_slt(int pos)
+{
+    if (pos == -1){
+        pStatusBar->hide();
+        QMessageBox::information(this, "提示", "串口打开失败，请检查！");
+        return;
+    }
+    pProgressBar->setFormat(QString("%1%").arg(pos));
+    pProgressBar->setValue(pos);
+
+    int row_cnt = m_table->rowCount();
+    int cur_num = m_progresstext->text().split("/")[0].toInt();
+    if (pos==100){
+        cur_num++;
+        if (cur_num > row_cnt){
+            QMessageBox::information(this, "提示", "下载完成！");
+        }else{
+            m_progresstext->setText(QString("%1/%2").arg(cur_num).arg(row_cnt));
+            down_row(cur_num-1);
+        }
+    }
+}
+
+void MainWindow::SetFilePath(QTableWidgetItem *item)
+{
+    int row = item->row();
+    int col = item->column();
+    if (col != 3)
+        return;
+    QString file_dir = QFileDialog::getOpenFileName(this, tr("选择文件"), "");
+    item->setText(file_dir);
+    item->setToolTip(file_dir);
+}
+
+void MainWindow::SetStartAddress(int index)
+{
 
 }
+
+void MainWindow::SetEraseSize(int index)
+{
+
+}
+
+void MainWindow::on_exportcfg_clicked()
+{
+    int rowCnt = m_table->rowCount();
+    if (rowCnt<=0){
+        return;
+    }
+    QString saveFileName = QFileDialog::getSaveFileName(this, tr("保存配置文件"), "", "Config(*.ini *.txt);;");
+    if(saveFileName.isEmpty() ) return;
+
+    QFile file(saveFileName);
+    if(!file.open(QIODevice::WriteOnly | QIODevice::Text))
+    {
+        return;
+    }
+    QTextStream txtOutput(&file);
+    QString type, address, size, filedir;
+    for(int i=0;i<rowCnt;i++){
+        type = ((QComboBox *)(m_table->cellWidget(i, 0)))->currentText();
+        address = ((QComboBox *)(m_table->cellWidget(i, 1)))->currentText();
+        size = ((QComboBox *)(m_table->cellWidget(i, 2)))->currentText();
+        filedir = m_table->item(i, 3)->text();
+        txtOutput<<i<<"\t"<<type<<"\t"<<address<<"\t"<<size<<"\t"<<filedir<<"\n";
+    }
+    file.close();
+
+}
+
+void MainWindow::on_inportcfg_clicked()
+{
+    QString file_dir = QFileDialog::getOpenFileName(this, tr("选择配置文件"), "", "Config(*.ini *.txt);;");
+    if(file_dir.isEmpty() ) return;
+
+    QFile file(file_dir);
+    if(!file.open(QIODevice::ReadOnly | QIODevice::Text))
+    {
+        return;
+    }
+    m_table->setRowCount(0);
+    QTextStream txtInput(&file);
+    QString lineStr;
+    QComboBox *type, *address, *size;
+    QStringList dataList;
+    bool ok;
+    int i, index;
+    while(!txtInput.atEnd()){
+        lineStr = txtInput.readLine();
+        dataList = lineStr.split("\t");
+        if (dataList.count() == 5){
+            on_insert_clicked();
+            i = dataList[0].toInt(&ok, 10);
+            if (ok && i < m_table->rowCount()){
+                type = (QComboBox *)(m_table->cellWidget(i, 0));
+                address = (QComboBox *)(m_table->cellWidget(i, 1));
+                size = (QComboBox *)(m_table->cellWidget(i, 2));
+                index = m_flashType.indexOf(dataList[1]);
+                if (index > -1){
+                    type->setCurrentIndex(index);
+                }
+                index = m_flashAddr.indexOf(dataList[2]);
+                if (index > -1){
+                    address->setCurrentIndex(index);
+                }
+                index = m_flashSize.indexOf(dataList[3]);
+                if (index > -1){
+                    size->setCurrentIndex(index);
+                }
+            }
+            m_table->item(dataList[0].toInt(), 3)->setText(dataList[4]);
+        }
+
+    }
+
+    file.close();
+}
+
 
 void MainWindow::down_row(int row)
 {
@@ -856,21 +1149,19 @@ void MainWindow::down_row(int row)
     //下载类型
     int type = ((QComboBox *)(m_table->cellWidget(row, 0)))->currentIndex();
     //起始地址
-    QString addr = m_table->item(row, 1)->text();
+    QString addr = ((QComboBox *)(m_table->cellWidget(row, 1)))->currentText();
+    addr = addr.mid(addr.indexOf("(")+1, 6);
     bool ok;
     int address = addr.toInt(&ok, 16);
+    if ((!ok) | (address < 0) | (address > 0x800000)){
+        QMessageBox::warning(this, "错误", QString("第%1行地址错误").arg(row));
+        return;
+    }
     //擦除大小
     int erase_size = ((QComboBox *)(m_table->cellWidget(row, 2)))->currentIndex();
     //图片位置
     QString filename = m_table->item(row, 3)->text();
 
-    switch (type) {
-    case 0:
-        type = 0;
-        break;
-    default:
-        break;
-    }
     switch (erase_size) {
     case 0: //4k
         cmd = 0x57;
@@ -894,13 +1185,9 @@ void MainWindow::down_row(int row)
         cmd = 0x58;
         break;
     }
-    m_com_obj->DownLoad(cmd, address, filename, 0);
+    m_com_obj->DownLoad(type, cmd, address, filename, 0);
 }
 
-int MainWindow::pack_data(int cmd, int addr, QString *filename, QByteArray *data)
-{
-
-}
 
 
 

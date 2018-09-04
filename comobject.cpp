@@ -62,44 +62,55 @@ const unsigned char gCrcLow[256]=
 };
 
 
-ComObject::ComObject(QObject *parent) :
+ComObject::ComObject(QString name, int baud, QObject *parent) :
     QObject(parent)
 {
     //1、初始化串口线程
     QThread *com_thread = new QThread;
-    ComDriver *com = new ComDriver();
+    ComDriver *com = new ComDriver(name, baud);
     com->moveToThread(com_thread);
     com_thread->start();
 
     //连接信号
-    connect(this, SIGNAL(DownLoad_sig(int,int,const QString,int)),
-            com, SLOT(DownLoad_slt(int,int,const QString,int)));
+    connect(this, SIGNAL(DownLoad_sig(int,int,int,const QString,int)),
+            com, SLOT(DownLoad_slt(int,int,int,const QString,int)));
 
+    connect(com, SIGNAL(ResProgress_sig(int)),
+            this, SLOT(ResProgress_slt(int)));
 
 }
 
-void ComObject::DownLoad(const int cmd, const int addr, const QString filename, int flag)
+void ComObject::DownLoad(const int type, const int cmd, const int addr, const QString filename, int flag)
 {
-    emit DownLoad_sig(cmd, addr, filename, flag);
+    emit DownLoad_sig(type, cmd, addr, filename, flag);
+}
+
+void ComObject::ResProgress_slt(int pos)
+{
+    emit ResProgress_sig(pos);
 }
 
 
 
-ComDriver::ComDriver(QObject *parent) :
+ComDriver::ComDriver(QString name, int baud, QObject *parent) :
     QObject(parent)
 {
 
     //打开窗口
     m_com = new QSerialPort();
-    m_com->setPortName("COM8");
+    m_com->setPortName(name);
     if (!m_com->open(QIODevice::ReadWrite)){
         return;
     }
-    m_com->setBaudRate(QSerialPort::Baud9600);
+    if (baud == 9600)
+        m_com->setBaudRate(QSerialPort::Baud9600);
+    else
+        m_com->setBaudRate(QSerialPort::Baud9600);
     m_com->setDataBits(QSerialPort::Data8);
     m_com->setParity(QSerialPort::NoParity);
     m_com->setStopBits(QSerialPort::OneStop);
     m_com->setFlowControl(QSerialPort::NoFlowControl);
+    connect(m_com,SIGNAL(readyRead()),this,SLOT(ReceiveMsg()));
     qDebug()<<"SerialPort is open";
 }
 /**
@@ -123,10 +134,9 @@ unsigned int ComDriver::CRC16Check(uchar *pchMsg, short wDataLen)
     }
     return (gCrcH<<8)|gCrcL;
 }
-bool ComDriver::ComOneManual(const int cmd, const int addr, const uchar *data, const int len)
+bool ComDriver::SendMsg(const int cmd, const int addr, const uchar *data, const int len)
 {
-    int i;
-    bool status;
+    int i, send_len;
     QByteArray send_buf;
     send_buf.resize(len+6);
     send_buf[0] = 0x01;
@@ -145,60 +155,371 @@ bool ComDriver::ComOneManual(const int cmd, const int addr, const uchar *data, c
     send_buf.append((CRC >> 8) & 0xff);
     send_buf.append((CRC >> 0) & 0xff);
 
-    if (m_com->write(send_buf)>0){
-        while (m_com->waitForReadyRead(WAIT_TIME)){
-            //1、读取并处理串口缓冲区数据
-            QByteArray seial_buff = m_com->readAll();
-            unsigned char r_cmd = (unsigned char)seial_buff[1];
-            switch (r_cmd) {
-            case 0x18:
-                qDebug()<<"CRC error!";
-                status = false;
+    send_len = m_com->write(send_buf);
+    if (send_len>0){
+        send_count += send_len;
+        cur_pos = cur_pos + send_len - 6 - 2;
+        qDebug()<<"Send success!";
+        return true;
+    }else{
+        qDebug()<<"Send failed!";
+        return false;
+    }
+}
+
+bool ComDriver::FetchData(uchar *data, int *len, int stat_pos)
+{
+    int value;
+    bool ok;
+    int i = 0, pos = 0;
+    //判断是否已经取完txt数据
+    if (stat_pos >= file_count*2){
+        return false;
+    }
+    while (1){
+        if (dtype == 0){
+            pos = (stat_pos+i)/2;
+            if (pos >= file_count)
                 break;
-            case 0x20:
-                qDebug()<<"Length error!";
-                status = false;
+            qDebug()<<pos<<stat_pos<<i<<dataStr[pos];
+            if (dataStr[pos].indexOf("0x")>-1 || dataStr[pos].indexOf("0X")>-1){
+                value = dataStr[pos].toInt(&ok, 16);
+            }else{
+                value = dataStr[pos].toInt(&ok, 10);
+            }
+            data[i++] =(uchar)((value >> 0) & 0xff);
+            data[i++] = (uchar)((value >> 8) & 0xff);
+        }else if (dtype == 1 | dtype == 3){
+            pos = stat_pos+i;
+            if (pos >= file_count)
                 break;
-            case 0x22:
-                qDebug()<<"Address error!";
-                status = false;
-                break;
-            case 0xa0:
-                qDebug()<<"Sucess!";
-                status = true;
-                break;
-            default:
-                qDebug()<<"Noknow error!";
-                status = false;
-                break;
+            qDebug()<<pos<<stat_pos<<i<<dataStr[pos];
+            if (dataStr[pos].indexOf("0x")>-1 || dataStr[pos].indexOf("0X")>-1){
+                value = dataStr[pos].toInt(&ok, 16);
+            }else{
+                value = dataStr[pos].toInt(&ok, 10);
+            }
+            data[i++] =(uchar)((value >> 0) & 0xff);
+        }
+        if (i>=256)
+            break;
+    }
+    *len = i;
+    return true;
+}
+
+bool ComDriver::OpenFile(QString name)
+{
+    if (dataStr.isEmpty()){
+        //打开数据filename
+        QFile f(name);
+        if(!f.open(QIODevice::ReadOnly | QIODevice::Text))
+        {
+            return false;
+        }
+        QTextStream txtInput(&f);
+        QString tmpStr = txtInput.readAll();
+        if (dtype<2){   //压缩和无压缩图片的文件处理
+            //QFileInfo infile(m_filename);
+            //QString name = infile.baseName();       //获取前缀名
+            QRegExp rx1("static GUI_CONST_STORAGE.+\n([.\n]+)GUI_CONST_STORAGE");
+            rx1.setMinimal(true);
+            int pos = 0;
+
+            QString datatmpStr;
+
+            if (dtype == 0){        //下载无压缩，文本中没有注释
+                datatmpStr = tmpStr;
+            }else if (dtype == 1){  //下载压缩图片，文本中有注释，需要去掉注释
+                while ((pos = rx1.indexIn(tmpStr, pos)) != -1){
+                    datatmpStr.push_back(rx1.capturedTexts().at(0));
+                    pos += rx1.matchedLength();
+                }
+                QStringList strList = datatmpStr.split("\n");
+                for (int i=0;i<strList.count();i++){
+                    strList[i] = strList[i].mid(strList[i].indexOf("*/")+2);
+                }
+                datatmpStr = strList.join("\n");
             }
 
+            pos = 0;
+            QString tmp;
+            QRegExp rx(tr("((0[xX])?[0-9a-fA-F]{1,4},)"));
+            while ((pos = rx.indexIn(datatmpStr, pos)) != -1){
+                tmp = rx.capturedTexts().at(0);
+                tmp.replace(",","");
+                dataStr.push_back(tmp);
+                pos += rx.matchedLength();
+            }
+        }else if (dtype == 3){      //菜单文件的处理
+            QStringList strList = tmpStr.split("\n");
+            char *szU8 = new char[128];
+            int len;
+            for (int j=0;j<strList.count();j++){
+                QStringToMultiByte(strList[j], szU8, &len);
+                for(int k=0;k<128;k++){
+                    dataStr.push_back(QString("%1").arg(szU8[k]));
+                }
+            }
+        }
+        f.close();
+        file_count = dataStr.count();
+    }
+}
+
+int ComDriver::QStringToMultiByte(QString str, char *out, int *len)
+{
+    char *szU8 = new char[512];
+    // unicode to UTF8
+    //wchar_t* wszString = ret;
+    //wchar_t* wszString = L"5号端子功能";
+    const wchar_t * wszString = reinterpret_cast<const wchar_t *>(str.utf16());
+    //预转换，得到所需空间的大小，这次用的函数和上面名字相反
+    int u8Len = ::WideCharToMultiByte(CP_UTF8, NULL, wszString, wcslen(wszString), NULL, 0, NULL, NULL);
+    //同上，分配空间要给'\0'留个空间
+    //UTF8虽然是Unicode的压缩形式，但也是多字节字符串，所以可以以char的形式保存
+    //unicode版对应的strlen是wcslen
+    ::WideCharToMultiByte(CP_UTF8, NULL, wszString, wcslen(wszString), szU8, u8Len, NULL, NULL);
+    //最后加上'\0'
+    //szU8[u8Len] = '\0';
+    int j=0;
+    for(int i=0;i<u8Len;i++){
+        switch (szU8[i]) {
+        case 0x30:
+            out[j++] = 0xe0;
+            out[j++] = 0x80;
+            out[j++] = 0xb0;
+            break;
+        case 0x31:
+            out[j++] = 0xe0;
+            out[j++] = 0x80;
+            out[j++] = 0xb1;
+            break;
+        case 0x32:
+            out[j++] = 0xe0;
+            out[j++] = 0x80;
+            out[j++] = 0xb2;
+            break;
+        case 0x33:
+            out[j++] = 0xe0;
+            out[j++] = 0x80;
+            out[j++] = 0xb3;
+            break;
+        case 0x34:
+            out[j++] = 0xe0;
+            out[j++] = 0x80;
+            out[j++] = 0xb4;
+            break;
+        case 0x35:
+            out[j++] = 0xe0;
+            out[j++] = 0x80;
+            out[j++] = 0xb5;
+            break;
+        case 0x36:
+            out[j++] = 0xe0;
+            out[j++] = 0x80;
+            out[j++] = 0xb6;
+            break;
+        case 0x37:
+            out[j++] = 0xe0;
+            out[j++] = 0x80;
+            out[j++] = 0xb7;
+            break;
+        case 0x38:
+            out[j++] = 0xe0;
+            out[j++] = 0x80;
+            out[j++] = 0xb8;
+            break;
+        case 0x39:
+            out[j++] = 0xe0;
+            out[j++] = 0x80;
+            out[j++] = 0xb9;
+            break;
+        default:
+            out[j++] = szU8[i];
+            break;
         }
     }
-    return status;
+
+    *len = j;
+
+}
+
+int ComDriver::QStringToUnicode(QString str, char *szUn, int *slen)
+{
+    // 这里传来的字符串一定要加tr，main函数里可以加 QTextCodec::setCodecForTr(QTextCodec::codecForLocale());
+
+    QString stt = QObject::tr("%1").arg ("5号端子功能");
+
+    QByteArray data;
+    const QChar *q;
+    QChar qtmp;
+    int num;
+    q=stt.unicode();
+    int len=stt.count();
+    for(int i=0;i<len;i++)
+    {
+        qtmp =(QChar)*q++;
+        num= qtmp.unicode();
+
+        quint8 hi = (quint8)(num >> 8);
+        quint8 lo = (quint8)(num);
+        data.append (hi);
+        data.append (lo);
+    }
+
+    while(data.count () <8)
+    {
+        data.append (QByteArray::fromHex ("20"));
+    }
+    qDebug ()<<"string to unicode :"<<QObject::tr("%1").arg(data.toHex().data ());
 
 }
 
 
 
-void ComDriver::DownLoad_slt(const int cmd, const int addr, const QString filename, int flag)
+void ComDriver::DownLoad_slt(const int type, const int cmd, const int addr, const QString filename, int flag)
 {
-    bool status;
+    if (!m_com->isOpen()){
+        emit ResProgress_sig(-1);
+    }
     //定位
-    status = ComOneManual(0x5d, addr, NULL, 0);
-    if (status){
-        //定位
-        status = ComOneManual(0x5d, addr, NULL, 0);
-        if (status){
-            //擦除
-            status = ComOneManual(cmd, addr, NULL, 0);
-            if (status){
-                //打开数据filename
+    s_cmd = 0x5d;
+    m_cmd = cmd;
+    dtype = type;
+    m_address = addr;
+    m_filename = filename;
+    dataStr = QStringList();
+    cur_pos = 0;
+    send_count = 0;
+    receive_count = 0;
+    SendMsg(0x5d, addr, NULL, 0);
+//    if (type == 3){
+////        QString fileName = "5号端子功能";
+////        // unicode to UTF8
+////        //wchar_t* wszString = ret;
+////        //wchar_t* wszString = L"5号端子功能";
+////        const wchar_t * wszString = reinterpret_cast<const wchar_t *>(fileName.utf16());
+////        //预转换，得到所需空间的大小，这次用的函数和上面名字相反
+////        int u8Len = ::WideCharToMultiByte(CP_UTF8, NULL, wszString, wcslen(wszString), NULL, 0, NULL, NULL);
+////        //同上，分配空间要给'\0'留个空间
+////        //UTF8虽然是Unicode的压缩形式，但也是多字节字符串，所以可以以char的形式保存
+////        char* szU8 = new char[u8Len + 1];
+////        //转换
+////        //unicode版对应的strlen是wcslen
+////        ::WideCharToMultiByte(CP_UTF8, NULL, wszString, wcslen(wszString), szU8, u8Len, NULL, NULL);
+////        //最后加上'\0'
+////        szU8[u8Len] = '\0';
+//        QString fileName = "5号端子功能";
+//        char *szU8 = new char[256];
+//        int len;
+//        QStringToMultiByte(fileName, szU8, &len);
+//        SendMsg(0x5d, addr, (uchar *)szU8, len);
+//    }
+}
 
-                //写入数据
-                status = ComOneManual(0x5b, addr, NULL, 0);
+void ComDriver::ReceiveMsg()
+{
+    //1、读取并处理串口缓冲区数据
+    bool status = false;
+    uchar data[512];
+    int len;
+    bool f_status;
+    QByteArray seial_buff = m_com->readAll();
+    if(!seial_buff.isEmpty())
+    {
+        receive_count += seial_buff.count();
+        unsigned char r_cmd = (unsigned char)seial_buff[1];
+        switch (r_cmd) {
+        case 0x18:
+            qDebug()<<"CRC error!";
+            break;
+        case 0x19:
+            qDebug()<<"Store error!";
+            break;
+        case 0x20:
+            qDebug()<<"Length error!";
+            break;
+        case 0x21:
+            qDebug()<<"CRC Length error!";
+            break;
+        case 0x22:
+            qDebug()<<"Address error!";
+            break;
+        case 0xa0:
+            status = true;
+            qDebug()<<"Sucess!";
+            break;
+        default:
+            qDebug()<<r_cmd<<"Noknow error!";
+            break;
+        }
+
+        switch (s_cmd) {
+        case 0x5d:  //定位
+            if (status){
+                qDebug()<<"Set start address success!";
+                s_cmd = m_cmd;
+                SendMsg(s_cmd, m_address, NULL, 0);
+            }else{
+                s_cmd = 0x5d;
+                SendMsg(s_cmd, m_address, NULL, 0);
+            }
+            break;
+        case 0x57:      //4k
+        case 0x58:      //8k
+        case 0x59:      //16k
+        case 0x5c:      //20k
+        case 0x5a:      //1M
+        case 0x5f:      //252k
+            if (status){
+                qDebug()<<"Erase success!";
+                OpenFile(m_filename);
+                f_status = FetchData(data, &len, cur_pos);
+                if (!f_status)
+                    return;
+                s_cmd = 0x5b;
+                SendMsg(s_cmd, m_address, data, len);
+            }else{
+                s_cmd = 0x5d;   //如果擦除失败，则重新定位擦除
+                SendMsg(s_cmd, m_address, NULL, 0);
+            }
+
+            break;
+        case 0x5b:
+            if (status){
+                if (dtype == 0){
+                    emit ResProgress_sig((cur_pos*100)/(2*file_count));
+                }else if (dtype == 1){
+                    emit ResProgress_sig((cur_pos*100)/(file_count));
+                }
+                qDebug()<<"Down part success!";
+                f_status = FetchData(data, &len, cur_pos);
+                if (f_status){
+                    s_cmd = 0x5b;
+                    SendMsg(s_cmd, m_address, data, len);
+                }else{
+                    s_cmd = 0x60;
+                    qDebug()<<send_count<<receive_count;
+                    SendMsg(s_cmd, m_address, data, len);
+                    qDebug()<<"Download finshed!";
+                }
+
+            }else{
+                f_status = FetchData(data, &len, cur_pos);
+                s_cmd = 0x5b;
+                SendMsg(s_cmd, m_address, data, len);
+            }
+            break;
+        case 0x60:
+            if (status){
+
+            }else{
 
             }
+            break;
+        default:
+            break;
         }
     }
 }

@@ -24,6 +24,10 @@
 #include <QComboBox>
 #include <QTablewidget>
 #include <QHeaderView>
+#include <QProgressBar>
+#include <QStatusBar>
+#include <QDialogButtonBox>
+
 
 #include "comobject.h"
 
@@ -67,15 +71,25 @@ private slots:
     bool deleteDir(const QString &dirName);
 
     void on_actioncfg_triggered();
+    void on_actioncom_triggered();
+
+
     void cal_pass();
 
     void on_insert_clicked();
     void on_delete_clicked();
     void on_downtable_clicked();
+    void ResProgress_slt(int pos);
+
+    void SetFilePath(QTableWidgetItem* item);
+    void SetStartAddress(int index);
+    void SetEraseSize(int index);
+
+    void on_exportcfg_clicked();
+    void on_inportcfg_clicked();
 
 private:
     void down_row(int row);
-    int pack_data(int cmd, int addr, QString *filename, QByteArray *data);
 private:
     QLineEdit *m_srcPath;
     QLineEdit *m_name;
@@ -112,18 +126,36 @@ private:
     QPushButton *m_modfiy_build;
     QPushButton *m_compress_clear;
     bool m_jiemi;
+    QString m_winRARCfg;
+    QString m_keilCfg;
+    QString m_checkCfg;
+    QTableWidget *m_tableCfg;
 
     QComboBox *m_comfact;
     QLineEdit *m_tippass;
     QLabel *m_dynpass;
 
     QTableWidget *m_table;
+    QPushButton *m_exportcfg;
+    QPushButton *m_inportcfg;
     QPushButton *m_insert;
     QPushButton *m_delete;
     QPushButton *m_downtable;
 
-    ComObject *m_com_obj;
+    QString m_ComPort;
+    QStringList m_flashType;
+    QStringList m_flashAddr;
+    QStringList m_flashSize;
 
+
+    int m_baudRate;
+    ComObject *m_com_obj;
+    QStatusBar *pStatusBar;
+    QProgressBar * pProgressBar;
+    QLabel *m_progresstext;
+
+    QDialog *m_cfgDialog;
+    QDialog *m_comDialog;
 };
 
 #endif // MAINWINDOW_H
