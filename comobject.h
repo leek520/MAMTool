@@ -7,7 +7,10 @@
 #include <QtSerialPort/QtSerialPort>
 
 #include "windows.h"
-#define WAIT_TIME 1000
+
+#define ERROR_OPEN      -1
+#define ERROR_ADDR      -2
+#define ERROR_FILE      -3
 class ComDriver : public QObject
 {
     Q_OBJECT
@@ -17,19 +20,21 @@ public:
 private:
     //CRC-16校验
     unsigned int CRC16Check(uchar *pchMsg, short wDataLen);
-    bool SendMsg(const int cmd, const int addr, const uchar *data, const int len);
+    unsigned int CRC16Check_CCITT(uchar *pchMsg, short wDataLen);
+    bool SendMsg(const int cmd, const int addr, const uchar *data, const int len, const int flag=0);
     bool FetchData(uchar *data, int *len, int stat_pos);
     bool OpenFile(QString name);
     int QStringToMultiByte(QString str, char *szU8, int *u8Len);
     int QStringToUnicode(QString str, char *szUn, int *slen);
 private slots:
-    void DownLoad_slt(const int type, const int cmd, const int addr, const QString filename, int flag);
+    void DownLoad_slt(const int type, const int cmd, const int addr, const QString filename, int flag=0);
     void ReceiveMsg();
 signals:
     void ResProgress_sig(int pos);
 private:
     int s_cmd;
     int m_cmd;
+    int m_flag;
     int dtype;
     int m_address;
     QString m_filename;
@@ -40,6 +45,7 @@ private:
     int send_count;
     int receive_count;
     QSerialPort *m_com;
+    QByteArray m_dataAll;
 };
 
 
@@ -49,10 +55,10 @@ class ComObject : public QObject
 public:
     ComObject(QString name, int baud, QObject *parent = 0);
 
-    void DownLoad(const int type, const int cmd, const int addr, const QString filename, int flag);
+    void DownLoad(const int type, const int cmd, const int addr, const QString filename, int flag=0);
 
 signals:
-    void DownLoad_sig(const int type, const int cmd, const int addr, const QString filename, int flag);
+    void DownLoad_sig(const int type, const int cmd, const int addr, const QString filename, int flag=0);
     void ResProgress_sig(int pos);
 private slots:
     void ResProgress_slt(int pos);

@@ -60,8 +60,6 @@ const unsigned char gCrcLow[256]=
     0X44, 0X84, 0X85, 0X45, 0X87, 0X47, 0X46, 0X86, 0X82, 0X42,
     0X43, 0X83, 0X41, 0X81, 0X80, 0X40
 };
-
-
 ComObject::ComObject(QString name, int baud, QObject *parent) :
     QObject(parent)
 {
@@ -134,9 +132,30 @@ unsigned int ComDriver::CRC16Check(uchar *pchMsg, short wDataLen)
     }
     return (gCrcH<<8)|gCrcL;
 }
-bool ComDriver::SendMsg(const int cmd, const int addr, const uchar *data, const int len)
+/**
+* 函数说明：CRC校验
+*
+* @param:需要校验的数据，长度
+*
+* @return:校验码
+**/
+unsigned int ComDriver::CRC16Check_CCITT(uchar *pchMsg, short wDataLen)
 {
-    int i, send_len;
+    int crc = 0xFFFF;
+    for (int j = 0; j < wDataLen; j++) {
+        crc = ((crc >> 8) | (crc << 8)) & 0xffff;
+        crc ^= (pchMsg[j] & 0xff);// byte to int, trunc sign
+        crc ^= ((crc & 0xff) >> 4);
+        crc ^= (crc << 12) & 0xffff;
+        crc ^= ((crc & 0xFF) << 5) & 0xffff;
+    }
+    crc &= 0xffff;
+    return crc;
+
+}
+bool ComDriver::SendMsg(const int cmd, const int addr, const uchar *data, const int len, const int flag)
+{
+    int i, send_len, data_len;
     QByteArray send_buf;
     send_buf.resize(len+6);
     send_buf[0] = 0x01;
@@ -145,8 +164,12 @@ bool ComDriver::SendMsg(const int cmd, const int addr, const uchar *data, const 
     send_buf[3] = (addr >> 16) & 0xff;
     send_buf[4] = (addr >> 8) & 0xff;
     send_buf[5] = (addr >> 0) & 0xff;
-
-    for(i=0;i<len;i++) {
+    if (data != NULL && flag == 0){
+        data_len = 256;
+    }else{
+        data_len = len;
+    }
+    for(i=0;i<data_len;i++) {
         send_buf[i+6] = data[i];
     }
     //添加CRC
@@ -159,6 +182,9 @@ bool ComDriver::SendMsg(const int cmd, const int addr, const uchar *data, const 
     if (send_len>0){
         send_count += send_len;
         cur_pos = cur_pos + send_len - 6 - 2;
+        for(i=0;i<data_len;i++) {
+            m_dataAll.append(data[i]);
+        }
         qDebug()<<"Send success!";
         return true;
     }else{
@@ -208,8 +234,8 @@ bool ComDriver::FetchData(uchar *data, int *len, int start_pos)
             char *szU8 = new char[128];
             memset(szU8, 0, 128);
             QStringToMultiByte(dataStr[pos+0], szU8, len);
+            memcpy((uchar *)(data+i*sizeof(uchar)), (uchar *)(szU8), 128);
             i += 128;
-            memcpy(data, (uchar *)(szU8+i*sizeof(uchar)), 128);
 
         }
         if (i>=256)
@@ -269,6 +295,9 @@ bool ComDriver::OpenFile(QString name)
             }
         }else if (dtype == 3){      //菜单文件的处理:一行128字节
             dataStr = tmpStr.split("\n");
+            while(dataStr[dataStr.count()-1].isEmpty()){
+                dataStr.removeLast();
+            }
             file_byte_count = dataStr.count() * 128;
         }
         f.close();
@@ -279,7 +308,7 @@ bool ComDriver::OpenFile(QString name)
 int ComDriver::QStringToMultiByte(QString str, char *out, int *len)
 {
     char *szU8 = new char[512];
-    memset(szU8, 0, 512);
+    //memset(szU8, 0, 512);
     // unicode to UTF8
     //wchar_t* wszString = ret;
     //wchar_t* wszString = L"5号端子功能";
@@ -292,63 +321,44 @@ int ComDriver::QStringToMultiByte(QString str, char *out, int *len)
     ::WideCharToMultiByte(CP_UTF8, NULL, wszString, wcslen(wszString), szU8, u8Len, NULL, NULL);
     //最后加上'\0'
     //szU8[u8Len] = '\0';
+    int i=0;
     int j=0;
-    for(int i=0;i<u8Len;i++){
-        switch (szU8[i]) {
-        case 0x30:
+    while(i < u8Len){
+//        if ((szU8[i] == 0x30) | //0
+//            (szU8[i] == 0x31) | //1
+//            (szU8[i] == 0x32) | //2
+//            (szU8[i] == 0x33) | //3
+//            (szU8[i] == 0x34) | //4
+//            (szU8[i] == 0x35) | //5
+//            (szU8[i] == 0x36) | //6
+//            (szU8[i] == 0x37) | //7
+//            (szU8[i] == 0x38) | //8
+//            (szU8[i] == 0x39) | //9
+//            (szU8[i] == 0x3a) | //:
+//            (szU8[i] == 0x20) | // 空格
+//            (szU8[i] == 0x28) | //(
+//            (szU8[i] == 0x29) ){//)
+        if ((szU8[i] >= 0x20) && (szU8[i] <= 0x3a)){
             out[j++] = 0xe0;
             out[j++] = 0x80;
-            out[j++] = 0xb0;
-            break;
-        case 0x31:
+            out[j++] = szU8[i] - 128;
+            i++;
+        }else if (((szU8[i] >= 0x61) && (szU8[i] <= 0x7a)) |//a-z
+                  ((szU8[i] >= 0x41) && (szU8[i] <= 0x5a))){//A-Z
             out[j++] = 0xe0;
-            out[j++] = 0x80;
-            out[j++] = 0xb1;
-            break;
-        case 0x32:
-            out[j++] = 0xe0;
-            out[j++] = 0x80;
-            out[j++] = 0xb2;
-            break;
-        case 0x33:
-            out[j++] = 0xe0;
-            out[j++] = 0x80;
-            out[j++] = 0xb3;
-            break;
-        case 0x34:
-            out[j++] = 0xe0;
-            out[j++] = 0x80;
-            out[j++] = 0xb4;
-            break;
-        case 0x35:
-            out[j++] = 0xe0;
-            out[j++] = 0x80;
-            out[j++] = 0xb5;
-            break;
-        case 0x36:
-            out[j++] = 0xe0;
-            out[j++] = 0x80;
-            out[j++] = 0xb6;
-            break;
-        case 0x37:
-            out[j++] = 0xe0;
-            out[j++] = 0x80;
-            out[j++] = 0xb7;
-            break;
-        case 0x38:
-            out[j++] = 0xe0;
-            out[j++] = 0x80;
-            out[j++] = 0xb8;
-            break;
-        case 0x39:
-            out[j++] = 0xe0;
-            out[j++] = 0x80;
-            out[j++] = 0xb9;
-            break;
-        default:
+            out[j++] = 0x81;
+            out[j++] = szU8[i] - 192;
+            i++;
+        }else if ((szU8[i] == 0x21) && (szU8[i+1] == 0x03)){//℃
+            out[j++] = 0xe2;
+            out[j++] = 0x84;
+            out[j++] = 0x83;
+            i = i + 2;
+        }else{
             out[j++] = szU8[i];
-            break;
+            i++;
         }
+
     }
 
     *len = j;
@@ -390,21 +400,39 @@ int ComDriver::QStringToUnicode(QString str, char *szUn, int *slen)
 
 void ComDriver::DownLoad_slt(const int type, const int cmd, const int addr, const QString filename, int flag)
 {
-    if (!m_com->isOpen()){
-        emit ResProgress_sig(-1);
-    }
-    //定位
-    s_cmd = 0x5d;
-    m_cmd = cmd;
-    dtype = type;
-    m_address = addr;
-    m_filename = filename;
-    dataStr = QStringList();
+    //清理历史变量
     cur_pos = 0;
     send_count = 0;
     receive_count = 0;
+    dataStr = QStringList();
+    m_dataAll.clear();
+
+    //检查串口是否打开
+    if (!m_com->isOpen()){
+        emit ResProgress_sig(ERROR_OPEN);
+    }
+    //参数合法性检查
+    if (addr < 0 || addr > 0x80000000){
+        emit ResProgress_sig(ERROR_ADDR);
+    }
+    OpenFile(filename);
+
+    //定位
+    s_cmd = 0x5d;
+    m_cmd = cmd;
+    m_flag = flag;
+    dtype = type;
+    m_address = addr;
+    m_filename = filename;
+
     SendMsg(0x5d, addr, NULL, 0);
 
+//    QString str = "Mpa";
+//    int len;
+//    char *szU8 = new char[128];
+//    memset(szU8, 0, 128);
+//    QStringToMultiByte(str, szU8, &len);
+//    SendMsg(0x11, addr, (uchar *)szU8, len, 1);
 }
 
 void ComDriver::ReceiveMsg()
@@ -412,7 +440,9 @@ void ComDriver::ReceiveMsg()
     //1、读取并处理串口缓冲区数据
     bool status = false;
     uchar data[512];
+
     int len;
+    static int eraseCnt = 0;
     bool f_status;
     memset(data, 0, 512);
     QByteArray seial_buff = m_com->readAll();
@@ -425,6 +455,7 @@ void ComDriver::ReceiveMsg()
             qDebug()<<"CRC error!";
             break;
         case 0x19:
+            status = true;
             qDebug()<<"Store error!";
             break;
         case 0x20:
@@ -438,7 +469,7 @@ void ComDriver::ReceiveMsg()
             break;
         case 0xa0:
             status = true;
-            qDebug()<<"Sucess!";
+            qDebug()<<"Receive sucess!";
             break;
         default:
             qDebug()<<r_cmd<<"Noknow error!";
@@ -446,11 +477,44 @@ void ComDriver::ReceiveMsg()
         }
 
         switch (s_cmd) {
+        case 0x50:
+            s_cmd = 0x5d;
+            SendMsg(s_cmd, m_address+eraseCnt*20*1024, NULL, 0);
+            break;
         case 0x5d:  //定位
             if (status){
                 qDebug()<<"Set start address success!";
-                s_cmd = m_cmd;
-                SendMsg(s_cmd, m_address, NULL, 0);
+                if (m_flag !=0 ){
+                    s_cmd = 0x5c;
+                    SendMsg(s_cmd, m_address+eraseCnt*20*1024, NULL, 0);
+                    s_cmd = 0x50;
+                    eraseCnt++;
+                    if (eraseCnt == m_flag){
+                        s_cmd = 0x50;
+                        m_flag = 0;
+                        eraseCnt = 0;
+                    }
+                }else{
+                    s_cmd = m_cmd;
+                    SendMsg(s_cmd, m_address, NULL, 0);
+                }
+//                switch (m_cmd) {
+//                case 0x55:  //100K=20*5k
+//                    s_cmd = 0x5c;
+//                    SendMsg(s_cmd, m_address+eraseCnt*20*1024, NULL, 0);
+//                    s_cmd = 0x50;
+//                    eraseCnt++;
+//                    if (eraseCnt == 5){
+//                        s_cmd = 0x50;
+//                        m_cmd = 0x5c;
+//                        eraseCnt = 0;
+//                    }
+//                    break;
+//                default:
+//                    s_cmd = m_cmd;
+//                    SendMsg(s_cmd, m_address, NULL, 0);
+//                    break;
+//                }
             }else{
                 s_cmd = 0x5d;
                 SendMsg(s_cmd, m_address, NULL, 0);
@@ -466,8 +530,10 @@ void ComDriver::ReceiveMsg()
                 qDebug()<<"Erase success!";
                 OpenFile(m_filename);
                 f_status = FetchData(data, &len, cur_pos);
-                if (!f_status)
+                if (!f_status){
+                    emit ResProgress_sig(ERROR_FILE);
                     return;
+                }
                 s_cmd = 0x5b;
                 SendMsg(s_cmd, m_address, data, len);
             }else{
@@ -486,10 +552,15 @@ void ComDriver::ReceiveMsg()
                     s_cmd = 0x5b;
                     SendMsg(s_cmd, m_address, data, len);
                 }else{
+                    uchar *strAll;
+                    strAll = (uchar *)m_dataAll.data();
+                    uint CRC_CCITT = CRC16Check_CCITT(strAll, m_dataAll.count());
+                    qDebug()<<cur_pos<<send_count<<receive_count<<CRC_CCITT;
+                    data[0] = (cur_pos >> 0) & 0xff;
+                    data[1] = (CRC_CCITT >> 8) & 0xff;
+                    data[2] = (CRC_CCITT >> 0) & 0xff;
                     s_cmd = 0x60;
-                    qDebug()<<send_count<<receive_count;
-                    SendMsg(s_cmd, m_address, data, len);
-                    qDebug()<<"Download finshed!";
+                    SendMsg(s_cmd, (cur_pos>>8), data, 3, 1);
                 }
 
             }else{
@@ -500,7 +571,7 @@ void ComDriver::ReceiveMsg()
             break;
         case 0x60:
             if (status){
-
+                qDebug()<<"Download finshed!";
             }else{
 
             }

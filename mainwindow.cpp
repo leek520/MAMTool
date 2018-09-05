@@ -168,9 +168,9 @@ void MainWindow::setUi()
     m_table->horizontalHeader()->setStretchLastSection(true);//关键
     m_table->setHorizontalHeaderLabels(QStringList()<<"操作"<<"起始地址"<<"擦除大小"<<"文件"<<"状态");
 
-    m_exportcfg = new QPushButton("保存配置");
+    m_exportcfg = new QPushButton("导出配置");
     m_exportcfg->setFixedHeight(40);
-    m_inportcfg = new QPushButton("载入配置");
+    m_inportcfg = new QPushButton("导入配置");
     m_inportcfg->setFixedHeight(40);
     m_insert = new QPushButton("添加");
     m_insert->setFixedHeight(40);
@@ -188,8 +188,8 @@ void MainWindow::setUi()
 
 
     tgbox->addWidget(m_table,0,0,1,5);
-    tgbox->addWidget(m_exportcfg,1,0,1,1);
-    tgbox->addWidget(m_inportcfg,1,1,1,1);
+    tgbox->addWidget(m_exportcfg,1,1,1,1);
+    tgbox->addWidget(m_inportcfg,1,0,1,1);
     tgbox->addWidget(m_insert,1,2,1,1);
     tgbox->addWidget(m_delete,1,3,1,1);
     tgbox->addWidget(m_downtable,1,4,1,1);
@@ -205,14 +205,17 @@ void MainWindow::setUi()
                 <<"Touch(341000)"<<"TimePress(337000)"
                 <<"RunStop(33c000)"<<"Fault(323000)"
                 <<"MVSD(305000)"<<"FVSD(32d000)"
-                <<"Fact(346000)"<<"Calc(314000)"
                 <<"Data(319000)"<<"SetVSD(3c0000)"
                 <<"Mode(378000)"<<"Return(332000)"
                 <<"First(100000)"<<"32CharLib(000000)"
                 <<"Stop(200000)"<<"Load1(23f000)"
                 <<"Load2(27e000)"<<"Unld1(2bd000)"
                 <<"Unld2(37d000)"<<"Fan1(36e000)"
-                <<"Fan2(373000)";
+                <<"Fan2(373000)"
+                <<"TipRun(350000)"<<"TipPress(355000)"
+                <<"TipPown(35a000)"<<"TipRemote(35f000)"
+                <<"TipBlock(364000)"<<"TipModbus(369000)";
+
     m_flashSize<<"4K"<<"8K"<<"16K"<<"20K"<<"252K"<<"1M";
 
     pStatusBar = new QStatusBar();
@@ -986,9 +989,10 @@ void MainWindow::on_insert_clicked()
     //connect(item1, SIGNAL(currentIndexChanged(int)), this, SLOT(SetEraseSize(int)));
     QComboBox *item2 = new QComboBox();
     item2->addItems(m_flashSize);
+    item2->setEditable(true);
     item2->setCurrentIndex(3);
 
-    QTableWidgetItem *item3 = new QTableWidgetItem("C:/Users/leek/Desktop/data.ini"/*"D:\\2-Work\\0-Day_work\\leek\\xinlei_two\\first.c"*/);
+    QTableWidgetItem *item3 = new QTableWidgetItem("D:/2-Work/0-Day_work/leek/xinlei_two/caidan.c"/*"D:\\2-Work\\0-Day_work\\leek\\xinlei_two\\first.c"*/);
 
     item3->setToolTip(item3->text());
 
@@ -1028,21 +1032,24 @@ void MainWindow::on_downtable_clicked()
 
 void MainWindow::ResProgress_slt(int pos)
 {
-    if (pos == -1){
+    if (pos == ERROR_OPEN){
         pStatusBar->hide();
         QMessageBox::information(this, "提示", "串口打开失败，请检查！");
         return;
+    }else if (pos > 100){
+        pos = 100;
     }
     pProgressBar->setFormat(QString("%1%").arg(pos));
     pProgressBar->setValue(pos);
 
     int row_cnt = m_table->rowCount();
     int cur_num = m_progresstext->text().split("/")[0].toInt();
-    if (pos==100){
+    if (pos == 100){
         cur_num++;
         if (cur_num > row_cnt){
             QMessageBox::information(this, "提示", "下载完成！");
         }else{
+            QThread::sleep(1);      //必须加延时，否则控制器反应不过来
             m_progresstext->setText(QString("%1/%2").arg(cur_num).arg(row_cnt));
             down_row(cur_num-1);
         }
@@ -1056,8 +1063,10 @@ void MainWindow::SetFilePath(QTableWidgetItem *item)
     if (col != 3)
         return;
     QString file_dir = QFileDialog::getOpenFileName(this, tr("选择文件"), "");
-    item->setText(file_dir);
-    item->setToolTip(file_dir);
+    if (!file_dir.isEmpty()){
+        item->setText(file_dir);
+        item->setToolTip(file_dir);
+    }
 }
 
 void MainWindow::SetStartAddress(int index)
@@ -1127,17 +1136,24 @@ void MainWindow::on_inportcfg_clicked()
                 index = m_flashType.indexOf(dataList[1]);
                 if (index > -1){
                     type->setCurrentIndex(index);
+                }else{
+                    type->setCurrentText(dataList[1]);
                 }
                 index = m_flashAddr.indexOf(dataList[2]);
                 if (index > -1){
                     address->setCurrentIndex(index);
+                }else{
+                    address->setCurrentText(dataList[2]);
                 }
                 index = m_flashSize.indexOf(dataList[3]);
                 if (index > -1){
                     size->setCurrentIndex(index);
+                }else{
+                    size->setCurrentText(dataList[3]);
                 }
             }
             m_table->item(dataList[0].toInt(), 3)->setText(dataList[4]);
+            m_table->item(dataList[0].toInt(), 3)->setToolTip(dataList[4]);
         }
 
     }
@@ -1148,7 +1164,7 @@ void MainWindow::on_inportcfg_clicked()
 
 void MainWindow::down_row(int row)
 {
-    int cmd;
+    int cmd, flag=0;
     //下载类型
     int type = ((QComboBox *)(m_table->cellWidget(row, 0)))->currentIndex();
     //起始地址
@@ -1161,10 +1177,21 @@ void MainWindow::down_row(int row)
         return;
     }
     //擦除大小
-    int erase_size = ((QComboBox *)(m_table->cellWidget(row, 2)))->currentIndex();
-    //图片位置
-    QString filename = m_table->item(row, 3)->text();
-
+    int erase_size;
+    QString size = ((QComboBox *)(m_table->cellWidget(row, 2)))->currentText();
+    QStringList erase_str = size.split("*");
+    if (erase_str.count()==2){
+        erase_str[0].trimmed();
+        erase_str[1].trimmed();
+        flag = erase_str[1].toInt(&ok, 10);
+        erase_size = m_flashSize.indexOf(erase_str[0]);
+        if ((erase_size != 3) | (!ok)){
+            QMessageBox::warning(this, "错误", QString("第%1行自定义擦除大小错误").arg(row));
+            return;
+        }
+    }else{
+        erase_size = ((QComboBox *)(m_table->cellWidget(row, 2)))->currentIndex();
+    }
     switch (erase_size) {
     case 0: //4k
         cmd = 0x57;
@@ -1188,7 +1215,10 @@ void MainWindow::down_row(int row)
         cmd = 0x58;
         break;
     }
-    m_com_obj->DownLoad(type, cmd, address, filename, 0);
+    //图片位置
+    QString filename = m_table->item(row, 3)->text();
+
+    m_com_obj->DownLoad(type, cmd, address, filename, flag);
 }
 
 
