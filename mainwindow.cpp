@@ -216,7 +216,7 @@ void MainWindow::setUi()
                 <<"TipPown(35a000)"<<"TipRemote(35f000)"
                 <<"TipBlock(364000)"<<"TipModbus(369000)";
 
-    m_flashSize<<"4K"<<"8K"<<"16K"<<"20K"<<"252K"<<"1M";
+    m_flashSize<<"4K"<<"8K"<<"16K"<<"20K"<<"252K"<<"1M"<<"0K";
 
     pStatusBar = new QStatusBar();
     pStatusBar->hide();
@@ -1164,7 +1164,7 @@ void MainWindow::on_inportcfg_clicked()
 
 void MainWindow::down_row(int row)
 {
-    int cmd, flag=0;
+    int cmd;
     //下载类型
     int type = ((QComboBox *)(m_table->cellWidget(row, 0)))->currentIndex();
     //起始地址
@@ -1177,21 +1177,7 @@ void MainWindow::down_row(int row)
         return;
     }
     //擦除大小
-    int erase_size;
-    QString size = ((QComboBox *)(m_table->cellWidget(row, 2)))->currentText();
-    QStringList erase_str = size.split("*");
-    if (erase_str.count()==2){
-        erase_str[0].trimmed();
-        erase_str[1].trimmed();
-        flag = erase_str[1].toInt(&ok, 10);
-        erase_size = m_flashSize.indexOf(erase_str[0]);
-        if ((erase_size != 3) | (!ok)){
-            QMessageBox::warning(this, "错误", QString("第%1行自定义擦除大小错误").arg(row));
-            return;
-        }
-    }else{
-        erase_size = ((QComboBox *)(m_table->cellWidget(row, 2)))->currentIndex();
-    }
+    int erase_size = ((QComboBox *)(m_table->cellWidget(row, 2)))->currentIndex();
     switch (erase_size) {
     case 0: //4k
         cmd = 0x57;
@@ -1211,6 +1197,9 @@ void MainWindow::down_row(int row)
     case 5: //1M
         cmd = 0x5a;
         break;
+    case 6: //0
+        cmd = 0x0;
+        break;
     default:
         cmd = 0x58;
         break;
@@ -1218,7 +1207,7 @@ void MainWindow::down_row(int row)
     //图片位置
     QString filename = m_table->item(row, 3)->text();
 
-    m_com_obj->DownLoad(type, cmd, address, filename, flag);
+    m_com_obj->DownLoad(type, cmd, address, filename);
 }
 
 

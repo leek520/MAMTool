@@ -442,7 +442,6 @@ void ComDriver::ReceiveMsg()
     uchar data[512];
 
     int len;
-    static int eraseCnt = 0;
     bool f_status;
     memset(data, 0, 512);
     QByteArray seial_buff = m_com->readAll();
@@ -477,44 +476,17 @@ void ComDriver::ReceiveMsg()
         }
 
         switch (s_cmd) {
-        case 0x50:
-            s_cmd = 0x5d;
-            SendMsg(s_cmd, m_address+eraseCnt*20*1024, NULL, 0);
-            break;
         case 0x5d:  //定位
             if (status){
                 qDebug()<<"Set start address success!";
-                if (m_flag !=0 ){
-                    s_cmd = 0x5c;
-                    SendMsg(s_cmd, m_address+eraseCnt*20*1024, NULL, 0);
-                    s_cmd = 0x50;
-                    eraseCnt++;
-                    if (eraseCnt == m_flag){
-                        s_cmd = 0x50;
-                        m_flag = 0;
-                        eraseCnt = 0;
-                    }
+                if (m_cmd == 0x0){  //如果输入的擦除大小为0，则直接跳过擦除
+                    s_cmd = 0x5b;
+                    SendMsg(s_cmd, m_address, NULL, 0);
                 }else{
                     s_cmd = m_cmd;
                     SendMsg(s_cmd, m_address, NULL, 0);
                 }
-//                switch (m_cmd) {
-//                case 0x55:  //100K=20*5k
-//                    s_cmd = 0x5c;
-//                    SendMsg(s_cmd, m_address+eraseCnt*20*1024, NULL, 0);
-//                    s_cmd = 0x50;
-//                    eraseCnt++;
-//                    if (eraseCnt == 5){
-//                        s_cmd = 0x50;
-//                        m_cmd = 0x5c;
-//                        eraseCnt = 0;
-//                    }
-//                    break;
-//                default:
-//                    s_cmd = m_cmd;
-//                    SendMsg(s_cmd, m_address, NULL, 0);
-//                    break;
-//                }
+
             }else{
                 s_cmd = 0x5d;
                 SendMsg(s_cmd, m_address, NULL, 0);
