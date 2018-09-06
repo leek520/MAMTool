@@ -27,7 +27,8 @@
 #include <QProgressBar>
 #include <QStatusBar>
 #include <QDialogButtonBox>
-
+#include <QDomDocument>
+#include <QAxObject>
 
 #include "comobject.h"
 
@@ -62,6 +63,12 @@ private slots:
     void on_clear2_clicked();
 
 
+    void on_m_chooseBtn_clicked();
+    void on_m_chooseoutBtn_clicked();
+    void on_m_createBtn_clicked();
+
+
+
     void modify_global(QString name);
     void modify_hexfile(QString name);
     void modify_zhanhao(QString name);
@@ -88,9 +95,21 @@ private slots:
     void on_exportcfg_clicked();
     void on_inportcfg_clicked();
 
+    void on_flashdeconde_clicked();
 private:
     void down_row(int row);
 private:
+    QPushButton *m_chooseBtn;
+    QPushButton *m_chooseoutBtn;
+    QPushButton *m_createBtn;
+    QLineEdit *m_srcPathx;
+    QLineEdit *m_outPath;
+    QLineEdit *m_colNum;
+
+    QGridLayout *m_gbox;
+    QList<QComboBox *> m_comboxlist;
+
+
     QLineEdit *m_srcPath;
     QLineEdit *m_name;
     QLineEdit *m_data;
@@ -121,6 +140,7 @@ private:
     QString m_dir_name;
     QString m_project_path;
     int m_hexFileTime;
+    bool m_isCode;
     QListWidget *m_loglist;
 
     QPushButton *m_modfiy_build;

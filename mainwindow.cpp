@@ -14,16 +14,21 @@ MainWindow::~MainWindow()
 
 void MainWindow::setUi()
 {
+    setWindowIcon(QIcon(":/mamtool.ico"));
     resize(500,450);
     QTabWidget *w = new QTabWidget();
     setCentralWidget(w);
     QWidget *main0 = new QWidget(this);
     QWidget *main1 = new QWidget(this);
     QWidget *main2 = new QWidget(this);
+    QWidget *main3 = new QWidget(this);
+    QWidget *main4 = new QWidget(this);
 
-    w->addTab(main0, "程序修改");
+    w->addTab(main0, "程序修改");  
+    w->addTab(main2, "Flash下载");
+    w->addTab(main3, "芯片解密");
     w->addTab(main1, "密码计算");
-    w->addTab(main2, "flash下载");
+    w->addTab(main4, "处理菜单");
 
     QVBoxLayout *vbox = new QVBoxLayout();
     main0->setLayout(vbox);
@@ -154,7 +159,50 @@ void MainWindow::setUi()
 
     connect(m_tippass, SIGNAL(editingFinished()), this, SLOT(cal_pass()));
 
+    //处理菜单表格
+    QVBoxLayout *excel_vbox = new QVBoxLayout(main4);
+    QHBoxLayout *excel_hbox = new QHBoxLayout();
+    QString currentPathx = QDir::currentPath();
+    //QString currentPath = "D:\\2-Work\\leek.project\\mam_tools\\xlsx\\菜单_6070BZ_E22.xls";
+    m_srcPathx = new QLineEdit(currentPathx);
+    m_chooseBtn = new QPushButton("选择");
+    excel_hbox->addWidget(new QLabel("表格路径："));
+    excel_hbox->addWidget(m_srcPathx);
+    excel_hbox->addWidget(m_chooseBtn);
+    excel_hbox->setStretch(0,1);
+    excel_hbox->setStretch(1,5);
+    excel_hbox->setStretch(2,1);
 
+    QHBoxLayout *excel_hbox1 = new QHBoxLayout();
+    QString outPath = QDir::currentPath();
+
+    m_outPath = new QLineEdit(outPath);
+    m_chooseoutBtn = new QPushButton("选择");
+    excel_hbox1->addWidget(new QLabel("输出路径："));
+    excel_hbox1->addWidget(m_outPath);
+    excel_hbox1->addWidget(m_chooseoutBtn);
+    excel_hbox1->setStretch(0,1);
+    excel_hbox1->setStretch(1,5);
+    excel_hbox1->setStretch(2,1);
+
+    m_colNum = new QLineEdit("1");
+    m_createBtn = new QPushButton("确定");
+    QHBoxLayout *hbox_btn = new QHBoxLayout();
+    hbox_btn->addWidget(new QLabel("语言数量："));
+    hbox_btn->addWidget(m_colNum);
+    hbox_btn->addWidget(m_createBtn);
+    hbox_btn->setStretch(0,1);
+    hbox_btn->setStretch(1,5);
+    hbox_btn->setStretch(2,1);
+
+
+    excel_vbox->addLayout(excel_hbox);
+    excel_vbox->addLayout(excel_hbox1);
+    excel_vbox->addLayout(hbox_btn);
+
+    connect(m_chooseBtn, SIGNAL(clicked(bool)), this, SLOT(on_m_chooseBtn_clicked()));
+    connect(m_chooseoutBtn, SIGNAL(clicked(bool)), this, SLOT(on_m_chooseoutBtn_clicked()));
+    connect(m_createBtn, SIGNAL(clicked(bool)), this, SLOT(on_m_createBtn_clicked()));
 
     //flash下载页面
 
@@ -193,6 +241,14 @@ void MainWindow::setUi()
     tgbox->addWidget(m_insert,1,2,1,1);
     tgbox->addWidget(m_delete,1,3,1,1);
     tgbox->addWidget(m_downtable,1,4,1,1);
+
+
+    //芯片解密
+    QPushButton *flashDecode = new QPushButton("解密");
+    QGridLayout *fdbox = new QGridLayout(main3);
+    fdbox->addWidget(flashDecode, 0, 0);
+    connect(flashDecode, SIGNAL(clicked()), this, SLOT(on_flashdeconde_clicked()));
+
 
     m_com_obj = NULL;
     m_ComPort = "COM1";
@@ -354,6 +410,32 @@ void MainWindow::on_m_check_clicked()
 
 void MainWindow::on_m_compress_clicked()
 {
+    //先判断HEX文件是否加密，如果没加密，不能打包
+    QString hex_file = m_code_path+"/"+m_hex_name+".hex";
+    QFile file(hex_file);
+    if(!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qDebug()<<"Can't open the file!"<<endl;
+        m_isCode = false;
+        return;
+    }
+    int i=0;
+    while(!file.atEnd()) {
+        QByteArray line = file.readLine();
+        QString str(line);
+        i++;
+        if ((i==49) && (str.indexOf("FFFFFFFF")>-1)){
+            qDebug()<< str;
+            m_isCode = false;
+            QMessageBox::warning(this, tr("提示"),tr("程序未加密！"));
+            file.close();
+            return;
+        }
+        if (i>49){
+            break;
+        }
+    }
+    file.close();
+    m_isCode = true;
     QString code_dir = m_code_path+"\/"+m_dir_name;
     QString packet_cmd = QString("\"%1\" a -ep1 -r -ibck -o+ \"%2\" \"%3\"")
                     .arg(m_winRARCfg)
@@ -727,7 +809,138 @@ void MainWindow::on_build2_clicked()
 void MainWindow::on_clear2_clicked()
 {
     on_m_compress_clicked();
+    if (!m_isCode)
+        return;
     on_m_clear_clicked();
+}
+
+void MainWindow::on_m_chooseBtn_clicked()
+{
+    QString strFile = QFileDialog::getOpenFileName(this,QStringLiteral("选择Excel文件"),"",tr("Exel file(*.xls *.xlsx)"));
+    m_srcPathx->setText(strFile);
+}
+
+void MainWindow::on_m_chooseoutBtn_clicked()
+{
+    QString strFile = QFileDialog::getExistingDirectory(this,QStringLiteral("选择输出路径"),"");
+    m_outPath->setText(strFile);
+}
+
+void MainWindow::on_m_createBtn_clicked()
+{
+    QStringList dirlist;
+    dirlist<<"简体中文"<<"英文"<<"西班牙文"<<"繁体中文"<<"法文"<<"德文";
+    QStringList suflist;
+    suflist<<""<<" - ENG"<<" - 西班牙"<<" - 繁体"<<" - 法文"<<" - 德文";
+    QStringList namelist;
+    namelist<<"用户参数"<<"时间参数"<<"厂家参数"<<"运行参数"<<"预置变频器"
+            <<"校准参数"<<"主界面参数及其它"<<"按钮输入输出端子功能"<<"压力温度切换"
+            <<"运行状态"<<"故障"<<"预警"<<"硬件";
+
+    int curCol = 0;
+
+    QString strFile = m_srcPathx->text();
+    if (!strFile.endsWith(".xls") && !strFile.endsWith(".xlsx"))
+    {
+        return;
+    }
+
+    QString outDir = m_outPath->text();
+    QDir pathDir(outDir);
+    if (!pathDir.exists())
+    {
+        return;
+    }
+
+    //1、打开excel
+    QAxObject excel("Excel.Application"); //加载Excel驱动
+    excel.setProperty("Visible", false); //不显示Excel界面，如果为true会看到启动的Excel界面
+    QAxObject* pWorkBooks = excel.querySubObject("WorkBooks");
+    pWorkBooks->dynamicCall("Open (const QString&)", strFile);//打开指定文
+    QAxObject* pWorkBook = excel.querySubObject("ActiveWorkBook");
+    QAxObject* pWorkSheets = pWorkBook->querySubObject("Sheets");//获取工作表
+    int nSheetCount = pWorkSheets->property("Count").toInt();  //获取工作表的数目
+
+    for (int i=1; i<=nSheetCount; i++){
+        QAxObject* pWorkSheet = pWorkBook->querySubObject("Sheets(int)", i);//获取第一张表
+        QString name = pWorkSheet->property("Name").toString();
+        name = name.trimmed();
+        QAxObject *pUsedrange = pWorkSheet->querySubObject("UsedRange");//获取该sheet的使用范围对象
+        QAxObject *pRows = pUsedrange->querySubObject("Rows");
+        QAxObject *pColumns = pUsedrange->querySubObject("Columns");
+        /*获取行数和列数*/
+        int intCols = pColumns->property("Count").toInt();
+        int intRows = pRows->property("Count").toInt();
+        int intColStart = pColumns->property("Column").toInt();
+        int intRowStart = pRows->property("Row").toInt();
+
+        curCol = m_colNum->text().toInt();
+        if (curCol < 0 || curCol > intCols )
+        {
+            qDebug()<<name<<intColStart<<intCols<<curCol<<"Error col num";
+            continue;
+        }
+        for (int t=0; t<curCol; t++)
+        {
+            //2、创建txt
+            QString path = QString("%1\/%2").arg(outDir).arg(dirlist[t]);
+            QDir dir;
+            if (!dir.exists(path))
+            {
+                dir.mkpath(path);
+            }
+            //QString filename = QString("%1\/%2\/%3.txt").arg(dir.currentPath()).arg(path).arg(name);
+            QString fullname = namelist[i-1] + suflist[t];
+            if (fullname.contains("用户参数") && t==1)
+            {
+                fullname = "用户参数 -ENG";
+            }
+
+            QString filename = QString("%1\/%2.txt").arg(path).arg(fullname);
+            QFile file(filename);
+            if(!file.open(QIODevice::WriteOnly|QIODevice::Text)){
+                return;
+            }
+
+            QStringList outstr;
+            int space_num = 0, end_line = 0;
+            for (int j=intRowStart; j<=intRows; j++){
+                QAxObject *range = pWorkSheet->querySubObject("Cells(int,int)", j, t+2); //获取cell的值
+                QString value = range->dynamicCall("Value2()").toString();
+
+                qDebug()<<value.toStdString().c_str();
+
+                //3、插入txt
+                outstr << value;
+
+                //记录空格行的次数
+                if (value.remove(QRegExp("\\s")) == ""){
+                    space_num += 1;
+                }else{
+                    space_num = 0;
+                }
+            }
+            end_line = intRows - intRowStart + 1 - space_num;
+
+            //4、创建txt，并写入文件
+            QTextStream out(&file);
+            out.setCodec(QTextCodec::codecForName("unicode"));//unicode小端模式
+            out.setAutoDetectUnicode(true); //好像没用处
+            QChar head = 0xfeff;//unicode文件头 文本里前两个字节为FFFE
+            out << head;
+
+            for (int i=0;i<end_line;i++) {
+                out << outstr[i] << "\n";
+            }
+
+            file.close();
+
+        }
+    }
+    pWorkBooks->dynamicCall("Close()");
+
+    QMessageBox::information(this, "信息", "已完成！");
+
 }
 
 
@@ -992,7 +1205,7 @@ void MainWindow::on_insert_clicked()
     item2->setEditable(true);
     item2->setCurrentIndex(3);
 
-    QTableWidgetItem *item3 = new QTableWidgetItem("D:/2-Work/0-Day_work/leek/xinlei_two/caidan.c"/*"D:\\2-Work\\0-Day_work\\leek\\xinlei_two\\first.c"*/);
+    QTableWidgetItem *item3 = new QTableWidgetItem("D:/2-Work/leek.project/mam_tools/mamTools/build-mamTools-Desktop_Qt_5_2_1_MinGW_32bit-Debug/M6080Songti33.c"/*"D:\\2-Work\\0-Day_work\\leek\\xinlei_two\\first.c"*/);
 
     item3->setToolTip(item3->text());
 
@@ -1032,11 +1245,26 @@ void MainWindow::on_downtable_clicked()
 
 void MainWindow::ResProgress_slt(int pos)
 {
-    if (pos == ERROR_OPEN){
+    switch (pos) {
+    case ERROR_OPEN:
         pStatusBar->hide();
         QMessageBox::information(this, "提示", "串口打开失败，请检查！");
         return;
-    }else if (pos > 100){
+    case ERROR_FILE:
+        pStatusBar->hide();
+        QMessageBox::information(this, "提示", "文件打开失败，请检查！");
+        return;
+    case ERROR_ADDR:
+        pStatusBar->hide();
+        QMessageBox::information(this, "提示", "擦除地址有误，请检查！");
+        return;
+    case DECODE_OK:
+        QMessageBox::information(this, "提示", "芯片已解密！");
+        return;
+    default:
+        break;
+    }
+    if (pos > 100){
         pos = 100;
     }
     pProgressBar->setFormat(QString("%1%").arg(pos));
@@ -1047,6 +1275,7 @@ void MainWindow::ResProgress_slt(int pos)
     if (pos == 100){
         cur_num++;
         if (cur_num > row_cnt){
+            pStatusBar->hide();
             QMessageBox::information(this, "提示", "下载完成！");
         }else{
             QThread::sleep(1);      //必须加延时，否则控制器反应不过来
@@ -1159,6 +1388,142 @@ void MainWindow::on_inportcfg_clicked()
     }
 
     file.close();
+}
+
+void MainWindow::on_flashdeconde_clicked()
+{
+    if (m_com_obj == NULL){
+        m_com_obj = new ComObject(m_ComPort, m_baudRate);
+        connect(m_com_obj, SIGNAL(ResProgress_sig(int)),
+                this, SLOT(ResProgress_slt(int)));
+    }
+
+    m_com_obj->SendMsg("?");
+    QThread::msleep(200);
+    m_com_obj->SendMsg("S");
+    QThread::msleep(10);
+    m_com_obj->SendMsg("y");
+    QThread::msleep(10);
+    m_com_obj->SendMsg("n");
+    QThread::msleep(10);
+    m_com_obj->SendMsg("c");
+    QThread::msleep(10);
+    m_com_obj->SendMsg("h");
+    QThread::msleep(10);
+    m_com_obj->SendMsg("r");
+    QThread::msleep(10);
+    m_com_obj->SendMsg("o");
+    QThread::msleep(10);
+    m_com_obj->SendMsg("n");
+    QThread::msleep(10);
+    m_com_obj->SendMsg("i");
+    QThread::msleep(10);
+    m_com_obj->SendMsg("z");
+    QThread::msleep(10);
+    m_com_obj->SendMsg("e");
+    QThread::msleep(10);
+    m_com_obj->SendMsg("d");
+    QThread::msleep(10);
+    m_com_obj->SendMsg("\r\n");
+    QThread::msleep(200);
+    m_com_obj->SendMsg("A");
+    QThread::msleep(10);
+    m_com_obj->SendMsg(" ");
+    QThread::msleep(10);
+    m_com_obj->SendMsg("0");
+    QThread::msleep(10);
+    m_com_obj->SendMsg("\r\n");
+    QThread::msleep(200);
+    m_com_obj->SendMsg("A");
+    QThread::msleep(10);
+    m_com_obj->SendMsg(" ");
+    QThread::msleep(10);
+    m_com_obj->SendMsg("0");
+    QThread::msleep(10);
+    m_com_obj->SendMsg("\r\n");
+    QThread::msleep(200);
+    m_com_obj->SendMsg("U 23130\r\n");  //锁定
+    QThread::msleep(200);
+    m_com_obj->SendMsg("P 0 29\r\n");   //定位
+    QThread::msleep(200);
+    m_com_obj->SendMsg("E 0 29\r\n");   //擦除
+    QThread::msleep(200);
+    m_com_obj->SendMsg("R 764 4\r\n");  //读取加密状态
+
+    return;
+
+
+
+
+    QFile file("LPC1788.bsp");
+    if(!file.open(QIODevice::ReadOnly))
+    {
+        return;
+    }
+    QString errorStr;
+    int errorLine;
+    int errorCol;
+
+    QDomDocument sdoc;
+
+    //setContent是将指定的内容指定给QDomDocument解析，
+    //第一参数可以是QByteArray或者是文件名等
+    if(!sdoc.setContent(&file, true, &errorStr, &errorLine, &errorCol))
+    {
+        file.close();
+        qDebug() << errorStr << "line: " << errorLine << "col: " << errorCol;
+        return;
+    }
+    //读取报警列表
+
+    QString Name, DataFormat, Data, Latency, Active;
+    bool ok;
+    QDomElement elm;
+    QDomElement root = sdoc.documentElement();
+    QDomNode r_node = root.firstChild();
+    while (!r_node.isNull())
+    {
+        QDomElement r_elm = r_node.toElement();
+        QString name = r_elm.tagName();
+        if (name == "Signals"){
+            QDomNode s_node = r_elm.firstChild();
+            while (!s_node.isNull()){
+                QDomElement b_elm = s_node.toElement();
+                name = b_elm.tagName();
+                if (name == "BSSignal"){
+                    QDomNodeList nodelist = s_node.childNodes();
+                    elm = nodelist.at(0).toElement();
+                    Name = elm.text();
+                    elm = nodelist.at(1).toElement();
+                    DataFormat = elm.text();            //数据格式
+                    elm = nodelist.at(2).toElement();
+                    Data = elm.text();
+                    elm = nodelist.at(3).toElement();
+                    Latency = elm.text();
+                    elm = nodelist.at(4).toElement();
+                    Active = elm.text();
+
+                    if (Active == "true"){
+                        if (DataFormat == "String"){
+                            m_com_obj->com->SendMsg_slt(Data.toLocal8Bit().data());
+
+                        }else if (DataFormat == "Hex"){
+                            char sdata = Data.toInt(&ok,16);
+                            m_com_obj->com->SendMsg_slt(&sdata);
+                        }
+
+                        QThread::msleep(Latency.toInt());
+                        qDebug()<<QString("Send %1, delay %2").arg(Data).arg(Latency);
+                    }
+                }
+                s_node = s_node.nextSibling();
+            }
+        }
+        r_node = r_node.nextSibling();
+    }
+
+    file.close();
+
 }
 
 
