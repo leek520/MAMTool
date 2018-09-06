@@ -624,6 +624,9 @@ void ComDriver::ReceiveMsg()
 
 void ComDriver::SendMsg_slt(char* data)
 {
+    if (!m_com->isOpen()){
+        return;
+    }
     m_serialType = FLASH_DECODE;
     m_com->write(data);
     qDebug()<<"Send:"<<QString(data);

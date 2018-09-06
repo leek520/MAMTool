@@ -25,6 +25,12 @@ int main(int argc, char *argv[])
     // 加载QSS样式
     CommonHelper::setStyle(":/style.qss");
 
+    //设置字体
+    QFont font;
+    font.setFamily(QObject::tr("微软雅黑"));
+    font.setPixelSize(14);
+    a.setFont(font);
+
     MainWindow w;
     w.show();
 

@@ -86,7 +86,7 @@ void MainWindow::setUi()
     m_start = new QPushButton("1执行");
     m_build = new QPushButton("2编译");
     m_download = new QPushButton("3下载");
-    m_copy = new QPushButton("4拷贝hex");
+    m_copy = new QPushButton("4拷hex");
     m_check = new QPushButton("5检查");
     m_compress = new QPushButton("6打包");
     m_clear = new QPushButton("7清理");
@@ -143,10 +143,10 @@ void MainWindow::setUi()
 
 
     //算密码页面设计
-    m_comfact = new QComboBox;
+    m_comfact = new QComboBox();
     m_comfact->addItem("台盛");
     m_comfact->addItem("鑫磊");
-
+    m_comfact->setFixedHeight(40);
 
     m_tippass = new QLineEdit;
     m_tippass->setPlaceholderText("提示码");
@@ -1034,10 +1034,13 @@ void MainWindow::on_actioncfg_triggered()
     m_tableCfg = new QTableWidget(3,1);
     m_tableCfg->setToolTip("双击更改程序默认位置！");
     QTableWidgetItem *item = new QTableWidgetItem(m_winRARCfg);
+    item->setFont(QFont("微软雅黑", 9));
     m_tableCfg->setItem(0, 0, item);
     item = new QTableWidgetItem(m_keilCfg);
+    item->setFont(QFont("微软雅黑", 9));
     m_tableCfg->setItem(1, 0, item);
     item = new QTableWidgetItem(m_checkCfg);
+    item->setFont(QFont("微软雅黑", 9));
     m_tableCfg->setItem(2, 0, item);
 
     m_tableCfg->horizontalHeader()->setStretchLastSection(true);//关键
@@ -1096,6 +1099,7 @@ void MainWindow::on_actioncom_triggered()
     com->addItems(QStringList()<<"COM1"<<"COM2"<<"COM3"<<"COM4"
                                 <<"COM5"<<"COM6"<<"COM7"
                                 <<"COM8"<<"COM9");
+    com->setCurrentText(m_ComPort);
     QComboBox *baud = new QComboBox();
     baud->addItems(QStringList()<<"9600"<<"115200");
     QPushButton *ok = new QPushButton("Ok");
