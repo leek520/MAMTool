@@ -245,16 +245,22 @@ void MainWindow::setUi()
 
     //芯片解密
     QPushButton *flashDecode = new QPushButton("解密");
+    m_deviceType = new QComboBox();
+    m_deviceType->addItems(QStringList()<<"LPC1788"<<"LPC845");
     QGridLayout *fdbox = new QGridLayout(main3);
-    fdbox->addWidget(flashDecode, 0, 0);
+    fdbox->addWidget(m_deviceType, 0, 0);
+    fdbox->addWidget(flashDecode, 0, 1);
     connect(flashDecode, SIGNAL(clicked()), this, SLOT(on_flashdeconde_clicked()));
 
 
     m_com_obj = NULL;
     m_ComPort = "COM1";
-    m_baudRate = 115200;
-    m_flashType<<"无压缩图片"<<"压缩图片"<<"宋体32字库"<<"菜单";
-    m_flashAddr<<"Run(300000)"<<"User(30a000)"
+    m_baudRate = "115200";
+    m_Parity = "None";
+    m_Stopbit = "1";
+    m_flashType<<"无压缩图片"<<"压缩图片"<<"宋体32字库"<<"菜单"<<"宋体16字库";
+    m_flashAddr<<"CharLib(000000)"<<"Char16(420000)"
+                <<"Run(300000)"<<"User(30a000)"
                 <<"Fact(346000)"<<"Calc(314000)"
                 <<"Block(31e000)"<<"Hard(30f000)"
                 <<"Maint(328000)"<<"Vsd(34b000)"
@@ -1102,6 +1108,13 @@ void MainWindow::on_actioncom_triggered()
     com->setCurrentText(m_ComPort);
     QComboBox *baud = new QComboBox();
     baud->addItems(QStringList()<<"9600"<<"115200");
+    com->setCurrentText(m_baudRate);
+    QComboBox *parity = new QComboBox();
+    parity->addItems(QStringList()<<"None"<<"Even"<<"Odd");
+    parity->setCurrentText(m_Parity);
+    QComboBox *stopbit = new QComboBox();
+    stopbit->addItems(QStringList()<<"1"<<"1.5"<<"2");
+    stopbit->setCurrentText(m_Stopbit);
     QPushButton *ok = new QPushButton("Ok");
     QPushButton *cancel = new QPushButton("Cancel");
     connect(ok, SIGNAL(clicked()), m_comDialog, SLOT(accept()));
@@ -1109,13 +1122,17 @@ void MainWindow::on_actioncom_triggered()
 
     gridbox->addWidget(com, 0, 0);
     gridbox->addWidget(baud, 0, 1);
-    gridbox->addWidget(ok, 1, 0);
-    gridbox->addWidget(cancel, 1, 1);
+    gridbox->addWidget(parity, 1, 0);
+    gridbox->addWidget(stopbit, 1, 1);
+    gridbox->addWidget(ok, 2, 0);
+    gridbox->addWidget(cancel, 2, 1);
     int resutl = m_comDialog->exec();
     if (resutl == QDialog::Accepted)
     {
         m_ComPort = com->currentText();
-        m_baudRate = baud->currentText().toInt();
+        m_baudRate = baud->currentText();
+        m_Parity = parity->currentText();
+        m_Stopbit = stopbit->currentText();
         qDebug() << "You Choose Ok";
     }
     else
@@ -1198,7 +1215,7 @@ void MainWindow::on_insert_clicked()
 
     QComboBox *item0 = new QComboBox();
     item0->addItems(m_flashType);
-    item0->setCurrentIndex(1);
+    item0->setCurrentIndex(0);
     //connect(item0, SIGNAL(currentIndexChanged(int)), this, SLOT(SetStartAddress(int)));
     QComboBox *item1 = new QComboBox();
     item1->addItems(m_flashAddr);
@@ -1222,6 +1239,21 @@ void MainWindow::on_insert_clicked()
 
 void MainWindow::on_delete_clicked()
 {
+    QList<QTableWidgetItem*>items=m_table->selectedItems();
+    int count=items.count();
+
+    for(inti=0;i<count;i++)
+
+        {
+
+           introw=ui->TableWidget->row(items.at(i));//获取选中的行
+
+           QTableWidgetItem*item=items.at(i);
+
+           QStringname=item->text();//获取内容
+
+        }
+
     int cur_num = m_table->currentRow();
     if (cur_num>=0)
         m_table->removeRow(cur_num);
@@ -1230,7 +1262,7 @@ void MainWindow::on_delete_clicked()
 void MainWindow::on_downtable_clicked()
 {
     if (m_com_obj == NULL){
-        m_com_obj = new ComObject(m_ComPort, m_baudRate);
+        m_com_obj = new ComObject(m_ComPort, m_baudRate, m_Parity, m_Stopbit);
         connect(m_com_obj, SIGNAL(ResProgress_sig(int)),
                 this, SLOT(ResProgress_slt(int)));
     }
@@ -1253,6 +1285,7 @@ void MainWindow::ResProgress_slt(int pos)
     case ERROR_OPEN:
         pStatusBar->hide();
         QMessageBox::information(this, "提示", "串口打开失败，请检查！");
+        m_com_obj = NULL;
         return;
     case ERROR_FILE:
         pStatusBar->hide();
@@ -1397,7 +1430,7 @@ void MainWindow::on_inportcfg_clicked()
 void MainWindow::on_flashdeconde_clicked()
 {
     if (m_com_obj == NULL){
-        m_com_obj = new ComObject(m_ComPort, m_baudRate);
+        m_com_obj = new ComObject(m_ComPort, m_baudRate, m_Parity, m_Stopbit);
         connect(m_com_obj, SIGNAL(ResProgress_sig(int)),
                 this, SLOT(ResProgress_slt(int)));
     }
@@ -1446,11 +1479,20 @@ void MainWindow::on_flashdeconde_clicked()
     QThread::msleep(10);
     m_com_obj->SendMsg("\r\n");
     QThread::msleep(200);
-    m_com_obj->SendMsg("U 23130\r\n");  //锁定
-    QThread::msleep(200);
-    m_com_obj->SendMsg("P 0 29\r\n");   //定位
-    QThread::msleep(200);
-    m_com_obj->SendMsg("E 0 29\r\n");   //擦除
+    if (m_deviceType->currentIndex() == 0){
+        m_com_obj->SendMsg("U 23130\r\n");  //锁定
+        QThread::msleep(200);
+        m_com_obj->SendMsg("P 0 29\r\n");   //定位
+        QThread::msleep(200);
+        m_com_obj->SendMsg("E 0 29\r\n");   //擦除
+    }else if(m_deviceType->currentIndex() == 1){
+        m_com_obj->SendMsg("U 23130\r\n");  //锁定
+        QThread::msleep(200);
+        m_com_obj->SendMsg("P 0 63\r\n");   //定位
+        QThread::msleep(200);
+        m_com_obj->SendMsg("E 0 63\r\n");   //擦除
+    }
+
     QThread::msleep(200);
     m_com_obj->SendMsg("R 764 4\r\n");  //读取加密状态
 

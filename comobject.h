@@ -22,7 +22,7 @@ class ComDriver : public QObject
 {
     Q_OBJECT
 public:
-    ComDriver(QString name, int baud, QObject *parent = 0);
+    ComDriver(QString name, QString baud, QString parity, QString stopbit, QObject *parent = 0);
 
 private:
     //CRC-16校验
@@ -34,7 +34,7 @@ private:
     int QStringToMultiByte(QString str, char *szU8, int *u8Len);
     int QStringToUnicode(QString str, char *szUn, int *slen);
 
-    bool FontLineCal(QString line, QString *left, QString *right);
+    bool FontLineCal(QString line, QStringList *data);
 public slots:
     void DownLoad_slt(const int type, const int cmd, const int addr, const QString filename, int flag=0);
     void ReceiveMsg();
@@ -67,7 +67,7 @@ class ComObject : public QObject
     Q_OBJECT
 public:
     ComDriver *com;
-    ComObject(QString name, int baud, QObject *parent = 0);
+    ComObject(QString name, QString baud, QString parity, QString stopbit, QObject *parent = 0);
 
     void DownLoad(const int type, const int cmd, const int addr, const QString filename, int flag=0);
     void SendMsg(char* data);

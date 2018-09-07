@@ -60,12 +60,12 @@ const unsigned char gCrcLow[256]=
     0X44, 0X84, 0X85, 0X45, 0X87, 0X47, 0X46, 0X86, 0X82, 0X42,
     0X43, 0X83, 0X41, 0X81, 0X80, 0X40
 };
-ComObject::ComObject(QString name, int baud, QObject *parent) :
+ComObject::ComObject(QString name, QString baud, QString parity, QString stopbit, QObject *parent) :
     QObject(parent)
 {
     //1、初始化串口线程
     QThread *com_thread = new QThread;
-    com = new ComDriver(name, baud);
+    com = new ComDriver(name, baud, parity, stopbit);
     com->moveToThread(com_thread);
     com_thread->start();
 
@@ -96,7 +96,7 @@ void ComObject::ResProgress_slt(int pos)
 
 
 
-ComDriver::ComDriver(QString name, int baud, QObject *parent) :
+ComDriver::ComDriver(QString name, QString baud, QString parity, QString stopbit, QObject *parent) :
     QObject(parent)
 {
 
@@ -106,13 +106,24 @@ ComDriver::ComDriver(QString name, int baud, QObject *parent) :
     if (!m_com->open(QIODevice::ReadWrite)){
         return;
     }
-    if (baud == 9600)
+    if (baud == "9600")
         m_com->setBaudRate(QSerialPort::Baud9600);
     else
-        m_com->setBaudRate(QSerialPort::Baud9600);
+        m_com->setBaudRate(QSerialPort::Baud115200);
     m_com->setDataBits(QSerialPort::Data8);
-    m_com->setParity(QSerialPort::NoParity);
-    m_com->setStopBits(QSerialPort::OneStop);
+    if (parity == "None")
+        m_com->setParity(QSerialPort::NoParity);
+    else if (parity == "Even")
+        m_com->setParity(QSerialPort::EvenParity);
+    else if (parity == "Odd")
+        m_com->setParity(QSerialPort::OddParity);
+    if (stopbit == "1")
+        m_com->setStopBits(QSerialPort::OneStop);
+    else if (stopbit == "1.5")
+        m_com->setStopBits(QSerialPort::OneAndHalfStop);
+    else if (stopbit == "2")
+        m_com->setStopBits(QSerialPort::TwoStop);
+
     m_com->setFlowControl(QSerialPort::NoFlowControl);
     connect(m_com,SIGNAL(readyRead()),this,SLOT(ReceiveMsg()));
     qDebug()<<"SerialPort is open";
@@ -233,7 +244,7 @@ bool ComDriver::FetchData(uchar *data, int *len, int start_pos)
                 value = dataStr[pos].toInt(&ok, 10);
             }
             data[i++] =(uchar)((value >> 0) & 0xff);
-        }else if (dtype == 2){
+        }else if (dtype == 2 | dtype == 4){
             pos = start_pos + i;
             if (pos >= dataStr.count())
                 break;
@@ -306,15 +317,18 @@ bool ComDriver::OpenFile(int type, QString name)
             }else{
                 file_byte_count = dataStr.count();
             }
-        }else if (type == 2){
+        }else if (type == 2 | type == 4){
+            //如果下载的是宋体16，则截取.c文件中的中文字库部分下载
+            if (type == 4){
+                tmpStr = tmpStr.mid(tmpStr.indexOf("/* Start of unicode area <CJK Unified Ideographs> */"));
+            }
             strList = tmpStr.split("\n");
-            QString left, right;
+            QStringList lineData;
             bool status;
             for(int j=0; j<strList.count();j++){
-                status = FontLineCal(strList[j], &left, &right);
+                status = FontLineCal(strList[j], &lineData);
                 if (status){
-                    dataStr.push_back(left);
-                    dataStr.push_back(right);
+                    dataStr += lineData;
                     qDebug()<<"Line:"<<left<<right;
                 }
             }
@@ -422,29 +436,31 @@ int ComDriver::QStringToUnicode(QString str, char *szUn, int *slen)
 
 }
 
-bool ComDriver::FontLineCal(QString line, QString *left, QString *right)
+bool ComDriver::FontLineCal(QString line, QStringList *data)
 {
-    int tmp1 = 0;
-    int tmp2 = 0;
+    QStringList tmpData;
+    int tmp = 0;
     //先判断是否为字体行
     if ((!line.startsWith("  _")) && (!line.startsWith("  X"))){
         return false;
     }
     line = line.replace(" ", ""); //去掉空格
     QStringList lineList = line.split(",");
-    int i;
-    for (i=0;i<lineList[0].count();i++){
-        if (lineList[0][i] == 'X'){
-            tmp1 = tmp1 + (1<<(7-i));
-        }
+    //如果最后一个为空字符串，移除
+    while(lineList[lineList.count()-1].isEmpty()){
+        lineList.removeLast();
     }
-    for (i=0;i<lineList[1].count();i++){
-        if (lineList[1][i] == 'X'){
-            tmp2 = tmp2 + (1<<(7-i));
+    for (int j=0; j<lineList.count();j++){
+        tmp = 0;
+        for (int i=0;i<lineList[j].count();i++){
+            if (lineList[j][i] == 'X'){
+                tmp = tmp + (1<<(7-i));
+            }
         }
+        tmpData.append(QString("%1").arg(tmp & 0xff));
     }
-    *left = QString("%1").arg(tmp1 & 0xff);
-    *right = QString("%1").arg(tmp2 & 0xff);
+
+    *data = tmpData;
     return true;
 }
 
@@ -496,7 +512,7 @@ void ComDriver::ReceiveMsg()
 
     int len;
     bool f_status;
-    if (dtype == 2){
+    if (dtype == 2 | dtype == 4){
         memset(data, 0xff, 512);
     }else{
         memset(data, 0, 512);

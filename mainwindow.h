@@ -133,7 +133,7 @@ private:
     QPushButton *m_check;
     QPushButton *m_compress;
     QPushButton *m_clear;
-
+    QComboBox *m_deviceType;
 
     QString m_code_path;
     QString m_hex_name;
@@ -162,13 +162,15 @@ private:
     QPushButton *m_delete;
     QPushButton *m_downtable;
 
-    QString m_ComPort;
+
     QStringList m_flashType;
     QStringList m_flashAddr;
     QStringList m_flashSize;
 
-
-    int m_baudRate;
+    QString m_ComPort;
+    QString m_baudRate;
+    QString m_Parity;
+    QString m_Stopbit;
     ComObject *m_com_obj;
     QStatusBar *pStatusBar;
     QProgressBar * pProgressBar;
