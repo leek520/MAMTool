@@ -74,7 +74,7 @@ private slots:
     void modify_zhanhao(QString name);
     void modify_vfactor(QString name);
     void modify_startup(bool jiemi);
-
+    void modify_UPDATA(QString name);
     bool deleteDir(const QString &dirName);
 
     void on_actioncfg_triggered();
@@ -96,8 +96,17 @@ private slots:
     void on_inportcfg_clicked();
 
     void on_flashdeconde_clicked();
+
+    void on_M90Uncomp_clicked();
+    void on_M90Choose_clicked();
+    void on_M90Modfiy_clicked();
+    void on_M90Compress_clicked();
+    void on_M90Compile_clicked();
+    void on_M90Change_clicked();
+    void ChangeM90(QString path);
 private:
     void down_row(int row);
+
 private:
     QPushButton *m_chooseBtn;
     QPushButton *m_chooseoutBtn;
@@ -175,9 +184,12 @@ private:
     QStatusBar *pStatusBar;
     QProgressBar * pProgressBar;
     QLabel *m_progresstext;
-
+    QList<int> m_downloadRow;
     QDialog *m_cfgDialog;
     QDialog *m_comDialog;
+    bool m_SerialChange;
+
+    QLineEdit *M90path;
 };
 
 #endif // MAINWINDOW_H

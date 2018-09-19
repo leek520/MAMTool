@@ -22,16 +22,14 @@ void MainWindow::setUi()
     QWidget *main1 = new QWidget(this);
     QWidget *main2 = new QWidget(this);
     QWidget *main3 = new QWidget(this);
-    QWidget *main4 = new QWidget(this);
 
     w->addTab(main0, "程序修改");  
+    w->addTab(main1, "处理菜单");
     w->addTab(main2, "Flash下载");
-    w->addTab(main3, "芯片解密");
-    w->addTab(main1, "密码计算");
-    w->addTab(main4, "处理菜单");
+    w->addTab(main3, "其它工具");
 
-    QVBoxLayout *vbox = new QVBoxLayout();
-    main0->setLayout(vbox);
+
+    QVBoxLayout *vbox = new QVBoxLayout(main0);
 
     QHBoxLayout *hbox = new QHBoxLayout();
     QString currentPath = QDir::currentPath();
@@ -142,25 +140,8 @@ void MainWindow::setUi()
     m_checkCfg = DIR_CHECK;
 
 
-    //算密码页面设计
-    m_comfact = new QComboBox();
-    m_comfact->addItem("台盛");
-    m_comfact->addItem("鑫磊");
-    m_comfact->setFixedHeight(40);
-
-    m_tippass = new QLineEdit;
-    m_tippass->setPlaceholderText("提示码");
-    m_dynpass = new QLabel("密码：");
-    m_dynpass->setFixedWidth(100);
-    QHBoxLayout *passbox = new QHBoxLayout(main1);
-    passbox->addWidget(m_comfact);
-    passbox->addWidget(m_tippass);
-    passbox->addWidget(m_dynpass);
-
-    connect(m_tippass, SIGNAL(editingFinished()), this, SLOT(cal_pass()));
-
     //处理菜单表格
-    QVBoxLayout *excel_vbox = new QVBoxLayout(main4);
+    QVBoxLayout *excel_vbox = new QVBoxLayout(main1);
     QHBoxLayout *excel_hbox = new QHBoxLayout();
     QString currentPathx = QDir::currentPath();
     //QString currentPath = "D:\\2-Work\\leek.project\\mam_tools\\xlsx\\菜单_6070BZ_E22.xls";
@@ -243,22 +224,12 @@ void MainWindow::setUi()
     tgbox->addWidget(m_downtable,1,4,1,1);
 
 
-    //芯片解密
-    QPushButton *flashDecode = new QPushButton("解密");
-    m_deviceType = new QComboBox();
-    m_deviceType->addItems(QStringList()<<"LPC1788"<<"LPC845");
-    QGridLayout *fdbox = new QGridLayout(main3);
-    fdbox->addWidget(m_deviceType, 0, 0);
-    fdbox->addWidget(flashDecode, 0, 1);
-    connect(flashDecode, SIGNAL(clicked()), this, SLOT(on_flashdeconde_clicked()));
-
-
     m_com_obj = NULL;
     m_ComPort = "COM1";
-    m_baudRate = "115200";
-    m_Parity = "None";
+    m_baudRate = "9600";
+    m_Parity = "Even";
     m_Stopbit = "1";
-    m_flashType<<"无压缩图片"<<"压缩图片"<<"宋体32字库"<<"菜单"<<"宋体16字库";
+    m_flashType<<"无压缩图片"<<"压缩图片"<<"宋体32字库"<<"菜单"<<"汉字16字库"<<"英文16字库"<<"其他字库";
     m_flashAddr<<"CharLib(000000)"<<"Char16(420000)"
                 <<"Run(300000)"<<"User(30a000)"
                 <<"Fact(346000)"<<"Calc(314000)"
@@ -295,7 +266,85 @@ void MainWindow::setUi()
     pStatusBar->addWidget(pProgressBar);
     pStatusBar->addWidget(m_progresstext);//添加到状态栏的左边
 
+    m_SerialChange = false;
 
+
+    //其他功能页面
+    QVBoxLayout *otherbox = new QVBoxLayout(main3);
+    otherbox->setMargin(10);
+    //算密码页面设计
+    QGroupBox *passwd = new QGroupBox();
+    passwd->setTitle("计算密码");
+    otherbox->addWidget(passwd);
+
+    m_comfact = new QComboBox();
+    m_comfact->addItem("台盛");
+    m_comfact->addItem("鑫磊");
+    m_comfact->setFixedHeight(40);
+
+    m_tippass = new QLineEdit;
+    m_tippass->setPlaceholderText("提示码");
+    m_dynpass = new QLabel("密码：");
+    m_dynpass->setStyleSheet("border:1px solid blue;");
+    m_dynpass->setFixedWidth(100);
+    QHBoxLayout *passbox = new QHBoxLayout(passwd);
+    passbox->addWidget(m_comfact);
+    passbox->addWidget(m_tippass);
+    passbox->addWidget(m_dynpass);
+
+    connect(m_tippass, SIGNAL(editingFinished()), this, SLOT(cal_pass()));
+
+    //芯片解密
+    QGroupBox *devicedecode = new QGroupBox();
+    devicedecode->setTitle("芯片解密");
+    otherbox->addWidget(devicedecode);
+    QPushButton *flashDecode = new QPushButton("解密");
+    m_deviceType = new QComboBox();
+    m_deviceType->addItems(QStringList()<<"LPC1788"<<"LPC845");
+    QGridLayout *fdbox = new QGridLayout(devicedecode);
+    fdbox->addWidget(m_deviceType, 0, 0);
+    fdbox->addWidget(flashDecode, 0, 1);
+    connect(flashDecode, SIGNAL(clicked()), this, SLOT(on_flashdeconde_clicked()));
+
+    //改6090程序ready页面设计
+    QGroupBox *M90Ready = new QGroupBox();
+    M90Ready->setTitle("修改90Ready");
+    otherbox->addWidget(M90Ready);
+    QGridLayout *M90box = new QGridLayout(M90Ready);
+    M90path = new QLineEdit();
+    QPushButton *M90Choose = new QPushButton("选择路径");
+    QPushButton *M90Uncomp = new QPushButton("批量解压");
+    QPushButton *M90Compile = new QPushButton("批量编译");
+
+    QPushButton *M90Change = new QPushButton("批量修改");
+    QPushButton *M90Compress = new QPushButton("批量打包");
+
+    QPushButton *M90Modify = new QPushButton("批量解压并修改");
+
+
+    M90box->addWidget(M90path, 0, 0, 1, 2);
+    M90box->addWidget(M90Choose, 1, 0, 1, 1);
+
+    M90box->addWidget(M90Uncomp, 2, 0, 1, 1);
+    M90box->addWidget(M90Change, 2, 1, 1, 1);
+
+    M90box->addWidget(M90Compile, 3, 0, 1, 1);
+    M90box->addWidget(M90Compress, 3, 1, 1, 1);
+
+//    M90box->addWidget(M90Modify, 4, 0, 1, 1);
+
+    connect(M90Choose, SIGNAL(clicked()), this, SLOT(on_M90Choose_clicked()));
+
+
+    connect(M90Uncomp, SIGNAL(clicked()), this, SLOT(on_M90Uncomp_clicked()));
+    connect(M90Compile, SIGNAL(clicked()), this, SLOT(on_M90Compile_clicked()));
+
+    connect(M90Change, SIGNAL(clicked()), this, SLOT(on_M90Change_clicked()));
+    connect(M90Compress, SIGNAL(clicked()), this, SLOT(on_M90Compress_clicked()));
+
+//    connect(M90Modify, SIGNAL(clicked()), this, SLOT(on_M90Modfiy_clicked()));
+
+    otherbox->addStretch();
 }
 
 void MainWindow::SetMenu()
@@ -448,8 +497,11 @@ void MainWindow::on_m_compress_clicked()
                     .arg(code_dir+".rar")
                     .arg(code_dir);
     qDebug() <<packet_cmd;
+
+
     QProcess pro(0);
     pro.execute(packet_cmd);
+
     m_loglist->addItem(QString("%1.%2").arg(m_loglist->count()).arg("打包完成."));
 }
 
@@ -457,6 +509,7 @@ void MainWindow::on_m_clear_clicked()
 {
     QDir dir(m_code_path);
     QString code_dir = m_code_path+"\/"+m_dir_name;
+
     dir.remove("ChangeName.exe");
     deleteDir(code_dir);
 
@@ -476,7 +529,16 @@ void MainWindow::on_m_copy_clicked()
 void MainWindow::on_btn_clicked()
 {
     QString dir = QFileDialog::getExistingDirectory(this, tr("Open Directory"), "D:\\2-Work\\0-Day_work", QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
+    if (dir.isEmpty()) return;
     m_srcPath->setText(dir);
+    QString name = dir.mid(dir.lastIndexOf("/") + 1);
+    if (name.startsWith("M6090")
+        || name.startsWith("M6080")
+        || name.startsWith("M6070")
+        || name.startsWith("M6060")){
+        name.remove(1,2);
+    }
+    m_name->setText(name);
 }
 
 void MainWindow::modify_global(QString name)
@@ -675,7 +737,7 @@ void MainWindow::modify_vfactor(QString name)
 
         for (int i=0;i<strAll.count();i++)
         {
-            if (strAll[i].contains("if\(\*pstr1 > 2000 \) \*pstr1 = 2000;"))
+            if (strAll[i].contains("if ( *pstr1 > 2000 ) *pstr1 = 2000;"))
             {
                 qDebug()<<strAll[i];
                 strAll[i].replace("2000", "4000");
@@ -740,6 +802,104 @@ void MainWindow::modify_startup(bool jiemi)
     }
 
     file.close();
+}
+
+void MainWindow::modify_UPDATA(QString name)
+{
+        QStringList strAll;
+        QString path = m_code_path + "\\" + name + "\\System\\Main.c";
+        qDebug()<<path;
+        QFile file(path);
+        if(!file.open(QIODevice::ReadWrite))
+        {
+            qDebug()<<"Can't open the file!"<<endl;
+        }
+        QTextStream in(&file);
+        while(!in.atEnd())
+        {
+            QString line = in.readLine();
+            strAll.append(line);
+        }
+
+        file.resize(0);
+        in.reset();
+
+
+        int readyflag = 0;
+        QString readyTmpStr = "";
+        //6090改ready
+        QString projectDir = m_srcPath->text();
+        if ((projectDir.startsWith("M90")) || (projectDir.startsWith("M6090"))) {
+
+            for (int i=0;i<strAll.count();i++)
+            {
+                if (strAll[i].indexOf("ExecutMulOutput(uint16_t pdata)") > -1){
+                    readyflag = 1;
+                }
+                if ((readyflag == 1) && (strAll[i].indexOf("case 4:") > -1)){
+                    readyflag = 2;
+                }
+                if (readyflag == 2){
+                    if ((strAll[i].indexOf("case 5:") > -1)){
+                       readyflag = 3;
+                    }else{
+                        readyTmpStr += strAll[i] + "\n";
+                    }
+                }
+                if (readyflag == 3){
+                    readyflag = 0;
+                    qDebug() << readyTmpStr;
+                    QString str = readyTmpStr;
+                    if(str.remove(QRegExp("\\s")) == "case4://readyif(gRunFlag1.Sys_OnokF){gRunMutex2.MulOutIOStateF=1;}else{gRunMutex2.MulOutIOStateF=0;}break;"){
+
+                        readyTmpStr =  "        case 4:  //ready\n"\
+                                       "            if(gRunFlag1.Sys_FaultF||gRunFlag1.Sys_EmergcF)\n" \
+                                       "            {\n" \
+                                       "                gRunMutex2.MulOutIOStateF = 0;\n" \
+                                       "            }\n" \
+                                       "            else\n" \
+                                       "            {\n" \
+                                       "                gRunMutex2.MulOutIOStateF = 1;\n" \
+                                       "            }\n" \
+                                       "            break;\n";
+
+                    }else{
+                        QMessageBox::warning(this, tr("提示"), tr("ready区域不匹配！"));
+                    }
+                    in << readyTmpStr;
+                    in << "        case 5: //far\n";
+                }else if (readyflag != 2){
+                    in << strAll[i]<<"\n";
+                }
+            }
+        }
+        //判断是否打开了工频风机
+        readyflag = 0;
+        for (int i=strAll.count()-1;i>0;i--)
+        {
+            if (strAll[i].indexOf("main(void)") > -1){
+                readyflag = 1;
+            }
+            if (readyflag == 1){
+                if (strAll[i].indexOf("OldMainPoll_ISR3(void)") > -1){
+                   readyflag = 2;
+                   break;
+                }else{
+                    readyTmpStr = strAll[i];
+                    readyTmpStr = readyTmpStr.remove(QRegExp("\\s"));
+                    if (readyTmpStr.startsWith("GpFanControl()")){
+                        readyflag = 3;
+                        break;
+                    }
+                }
+            }
+        }
+        //如果状态为3，则需要后续的更改
+        if (readyflag == 3){
+
+        }
+        file.close();
+
 }
 
 void MainWindow::on_m_build_clicked()
@@ -1082,9 +1242,9 @@ void MainWindow::on_actioncfg_triggered()
         }
         QFileInfo file3(m_checkCfg);
         if (!file3.exists()){
-            QMessageBox::information(this, "提示", "Check路径错误！");
-            QTimer::singleShot(100,this, SLOT(on_actioncfg_triggered()));
-            return;
+//            QMessageBox::information(this, "提示", "Check路径错误！");
+//            QTimer::singleShot(100,this, SLOT(on_actioncfg_triggered()));
+//            return;
         }
         qDebug() << "You Choose Ok";
     }
@@ -1105,10 +1265,11 @@ void MainWindow::on_actioncom_triggered()
     com->addItems(QStringList()<<"COM1"<<"COM2"<<"COM3"<<"COM4"
                                 <<"COM5"<<"COM6"<<"COM7"
                                 <<"COM8"<<"COM9");
+    com->setEditable(true);
     com->setCurrentText(m_ComPort);
     QComboBox *baud = new QComboBox();
     baud->addItems(QStringList()<<"9600"<<"115200");
-    com->setCurrentText(m_baudRate);
+    baud->setCurrentText(m_baudRate);
     QComboBox *parity = new QComboBox();
     parity->addItems(QStringList()<<"None"<<"Even"<<"Odd");
     parity->setCurrentText(m_Parity);
@@ -1129,6 +1290,14 @@ void MainWindow::on_actioncom_triggered()
     int resutl = m_comDialog->exec();
     if (resutl == QDialog::Accepted)
     {
+        if ((com->currentText() != m_ComPort) ||
+            (baud->currentText() != m_baudRate) ||
+            (parity->currentText() != m_Parity) ||
+            (stopbit->currentText() != m_Stopbit)){
+            m_SerialChange = true;
+        }else{
+            m_SerialChange = false;
+        }
         m_ComPort = com->currentText();
         m_baudRate = baud->currentText();
         m_Parity = parity->currentText();
@@ -1146,7 +1315,7 @@ void MainWindow::on_actioncom_triggered()
 void MainWindow::cal_pass()
 {
     int num = m_comfact->currentIndex();
-    unsigned short CalCode, dynpass;
+    unsigned short CalCode = 0, dynpass = 0;
     unsigned short temp,temp1,temp2,temp3,temp4;
     unsigned short result1,result2,result3,result4;
     CalCode = m_tippass->text().toInt();
@@ -1250,22 +1419,52 @@ void MainWindow::on_delete_clicked()
 
 void MainWindow::on_downtable_clicked()
 {
+    if (m_downtable->text() == "停止"){
+        m_com_obj->DownLoad(0,0,0,NULL,CANCEL_OK);
+        return;
+    }
+
     if (m_com_obj == NULL){
         m_com_obj = new ComObject(m_ComPort, m_baudRate, m_Parity, m_Stopbit);
+        m_SerialChange = false;
         connect(m_com_obj, SIGNAL(ResProgress_sig(int)),
                 this, SLOT(ResProgress_slt(int)));
+    }else if(m_SerialChange){
+        QString para = m_ComPort + "+" + m_baudRate + "+" + m_Parity + "+" + m_Stopbit;
+        m_com_obj->DownLoad(0, 0, 0, para, SERIAL_SET);
+        m_SerialChange = false;
     }
 
     int row_cnt = m_table->rowCount();
     if (row_cnt<=0){
         return;
     }
-
+    m_downloadRow.clear();
+    //获取选中的行
+    QList<QTableWidgetSelectionRange> selectRange=m_table->selectedRanges();
+    int count=selectRange.count();
+    for(int i=0;i<count;i++)
+    {
+       if ((selectRange[i].leftColumn() == 0) && (selectRange[i].rightColumn() == 3)){
+           for(int j=selectRange[i].topRow();j<=selectRange[i].bottomRow();j++){
+               m_downloadRow.append(j);
+           }
+       }
+    }
+    //如果用户没有选中整行，则默认下载所有行
+    if (m_downloadRow.isEmpty()){
+        for(int j=0;j<row_cnt;j++){
+            m_downloadRow.append(j);
+        }
+    }
     pStatusBar->show();
-    m_progresstext->setText(QString("%1/%2").arg(1).arg(row_cnt));
+    m_progresstext->setText(QString("%1/%2").arg(1).arg(m_downloadRow.count()));
     pProgressBar->setFormat(QString("%1%").arg(0));
     pProgressBar->setValue(0);
-    down_row(0);
+    down_row(m_downloadRow[0]);
+
+    m_downtable->setText("停止");
+
 }
 
 void MainWindow::ResProgress_slt(int pos)
@@ -1275,17 +1474,33 @@ void MainWindow::ResProgress_slt(int pos)
         pStatusBar->hide();
         QMessageBox::information(this, "提示", "串口打开失败，请检查！");
         m_com_obj = NULL;
+        m_downtable->setText("下载");
         return;
     case ERROR_FILE:
         pStatusBar->hide();
         QMessageBox::information(this, "提示", "文件打开失败，请检查！");
+        m_downtable->setText("下载");
+        return;
+    case ERROR_PICTYPE0:
+        pStatusBar->hide();
+        QMessageBox::information(this, "提示", "选择的文件为压缩图片格式，请检查！");
+        m_downtable->setText("下载");
+        return;
+    case ERROR_PICTYPE1:
+        pStatusBar->hide();
+        QMessageBox::information(this, "提示", "选择的文件为无压缩图片格式，请检查！");
+        m_downtable->setText("下载");
         return;
     case ERROR_ADDR:
         pStatusBar->hide();
         QMessageBox::information(this, "提示", "擦除地址有误，请检查！");
+        m_downtable->setText("下载");
         return;
     case DECODE_OK:
         QMessageBox::information(this, "提示", "芯片已解密！");
+        return;
+    case CANCEL_OK:
+        m_downtable->setText("下载");
         return;
     default:
         break;
@@ -1296,24 +1511,24 @@ void MainWindow::ResProgress_slt(int pos)
     pProgressBar->setFormat(QString("%1%").arg(pos));
     pProgressBar->setValue(pos);
 
-    int row_cnt = m_table->rowCount();
+    int row_cnt = m_downloadRow.count();
     int cur_num = m_progresstext->text().split("/")[0].toInt();
     if (pos == 100){
         cur_num++;
         if (cur_num > row_cnt){
+            m_downtable->setText("下载");
             pStatusBar->hide();
             QMessageBox::information(this, "提示", "下载完成！");
         }else{
             QThread::sleep(1);      //必须加延时，否则控制器反应不过来
             m_progresstext->setText(QString("%1/%2").arg(cur_num).arg(row_cnt));
-            down_row(cur_num-1);
+            down_row(m_downloadRow[cur_num-1]);
         }
     }
 }
 
 void MainWindow::SetFilePath(QTableWidgetItem *item)
 {
-    int row = item->row();
     int col = item->column();
     if (col != 3)
         return;
@@ -1419,72 +1634,72 @@ void MainWindow::on_inportcfg_clicked()
 void MainWindow::on_flashdeconde_clicked()
 {
     if (m_com_obj == NULL){
-        m_com_obj = new ComObject(m_ComPort, m_baudRate, m_Parity, m_Stopbit);
+        m_com_obj = new ComObject(m_ComPort, "9600", "None", "1");
         connect(m_com_obj, SIGNAL(ResProgress_sig(int)),
                 this, SLOT(ResProgress_slt(int)));
     }
+    for (int i=0;i<2;i++){
+        m_com_obj->SendMsg("?");
+        QThread::msleep(200);
+        m_com_obj->SendMsg("S");
+        QThread::msleep(10);
+        m_com_obj->SendMsg("y");
+        QThread::msleep(10);
+        m_com_obj->SendMsg("n");
+        QThread::msleep(10);
+        m_com_obj->SendMsg("c");
+        QThread::msleep(10);
+        m_com_obj->SendMsg("h");
+        QThread::msleep(10);
+        m_com_obj->SendMsg("r");
+        QThread::msleep(10);
+        m_com_obj->SendMsg("o");
+        QThread::msleep(10);
+        m_com_obj->SendMsg("n");
+        QThread::msleep(10);
+        m_com_obj->SendMsg("i");
+        QThread::msleep(10);
+        m_com_obj->SendMsg("z");
+        QThread::msleep(10);
+        m_com_obj->SendMsg("e");
+        QThread::msleep(10);
+        m_com_obj->SendMsg("d");
+        QThread::msleep(10);
+        m_com_obj->SendMsg("\r\n");
+        QThread::msleep(100);
+        m_com_obj->SendMsg("A");
+        QThread::msleep(10);
+        m_com_obj->SendMsg(" ");
+        QThread::msleep(10);
+        m_com_obj->SendMsg("0");
+        QThread::msleep(10);
+        m_com_obj->SendMsg("\r\n");
+        QThread::msleep(100);
+        m_com_obj->SendMsg("A");
+        QThread::msleep(10);
+        m_com_obj->SendMsg(" ");
+        QThread::msleep(10);
+        m_com_obj->SendMsg("0");
+        QThread::msleep(10);
+        m_com_obj->SendMsg("\r\n");
+        QThread::msleep(200);
+        if (m_deviceType->currentIndex() == 0){
+            m_com_obj->SendMsg("U 23130\r\n");  //锁定
+            QThread::msleep(100);
+            m_com_obj->SendMsg("P 0 29\r\n");   //定位
+            QThread::msleep(100);
+            m_com_obj->SendMsg("E 0 29\r\n");   //擦除
+        }else if(m_deviceType->currentIndex() == 1){
+            m_com_obj->SendMsg("U 23130\r\n");  //锁定
+            QThread::msleep(100);
+            m_com_obj->SendMsg("P 0 63\r\n");   //定位
+            QThread::msleep(100);
+            m_com_obj->SendMsg("E 0 63\r\n");   //擦除
+        }
 
-    m_com_obj->SendMsg("?");
-    QThread::msleep(200);
-    m_com_obj->SendMsg("S");
-    QThread::msleep(10);
-    m_com_obj->SendMsg("y");
-    QThread::msleep(10);
-    m_com_obj->SendMsg("n");
-    QThread::msleep(10);
-    m_com_obj->SendMsg("c");
-    QThread::msleep(10);
-    m_com_obj->SendMsg("h");
-    QThread::msleep(10);
-    m_com_obj->SendMsg("r");
-    QThread::msleep(10);
-    m_com_obj->SendMsg("o");
-    QThread::msleep(10);
-    m_com_obj->SendMsg("n");
-    QThread::msleep(10);
-    m_com_obj->SendMsg("i");
-    QThread::msleep(10);
-    m_com_obj->SendMsg("z");
-    QThread::msleep(10);
-    m_com_obj->SendMsg("e");
-    QThread::msleep(10);
-    m_com_obj->SendMsg("d");
-    QThread::msleep(10);
-    m_com_obj->SendMsg("\r\n");
-    QThread::msleep(200);
-    m_com_obj->SendMsg("A");
-    QThread::msleep(10);
-    m_com_obj->SendMsg(" ");
-    QThread::msleep(10);
-    m_com_obj->SendMsg("0");
-    QThread::msleep(10);
-    m_com_obj->SendMsg("\r\n");
-    QThread::msleep(200);
-    m_com_obj->SendMsg("A");
-    QThread::msleep(10);
-    m_com_obj->SendMsg(" ");
-    QThread::msleep(10);
-    m_com_obj->SendMsg("0");
-    QThread::msleep(10);
-    m_com_obj->SendMsg("\r\n");
-    QThread::msleep(200);
-    if (m_deviceType->currentIndex() == 0){
-        m_com_obj->SendMsg("U 23130\r\n");  //锁定
-        QThread::msleep(200);
-        m_com_obj->SendMsg("P 0 29\r\n");   //定位
-        QThread::msleep(200);
-        m_com_obj->SendMsg("E 0 29\r\n");   //擦除
-    }else if(m_deviceType->currentIndex() == 1){
-        m_com_obj->SendMsg("U 23130\r\n");  //锁定
-        QThread::msleep(200);
-        m_com_obj->SendMsg("P 0 63\r\n");   //定位
-        QThread::msleep(200);
-        m_com_obj->SendMsg("E 0 63\r\n");   //擦除
+        QThread::msleep(100);
+        m_com_obj->SendMsg("R 764 4\r\n");  //读取加密状态
     }
-
-    QThread::msleep(200);
-    m_com_obj->SendMsg("R 764 4\r\n");  //读取加密状态
-
     return;
 
 
@@ -1561,6 +1776,261 @@ void MainWindow::on_flashdeconde_clicked()
 
 }
 
+void MainWindow::on_M90Uncomp_clicked()
+{
+    QDir rootDir(M90path->text());
+    QString projectDir;
+    rootDir.setFilter(QDir::Dirs);
+    //第一步：遍历当前目录，取出所有文件夹
+    foreach(QFileInfo fullDir, rootDir.entryInfoList()){
+        if(fullDir.fileName() == "." || fullDir.fileName() == "..")
+            continue;
+        projectDir = fullDir.absoluteFilePath();
+        QDir dir(projectDir);
+        foreach(QString filename, dir.entryList())
+        {
+            if (filename.endsWith("rar") || filename.endsWith("zip"))
+            {
+                qApp->processEvents();
+                QString code_packet = dir.absolutePath()+"\/"+filename;
+                QString extract_cmd = QString("\"%1\" x -ibck -y -o+ \"%2\" \"%3\"")
+                                .arg(m_winRARCfg)
+                                .arg(code_packet)
+                                .arg(dir.absolutePath());
+                QProcess pro(0);
+                pro.execute(extract_cmd);
+                qApp->processEvents();
+            }
+        }
+    }
+    QMessageBox::information(this, tr("提示"), tr("解压完成！"));
+}
+
+void MainWindow::on_M90Choose_clicked()
+{
+    QString dir = QFileDialog::getExistingDirectory(this, tr("选择目录"), "D:\\2-Work\\0-Day_work", QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
+    if (!dir.isEmpty())
+        M90path->setText(dir);
+}
+
+void MainWindow::on_M90Modfiy_clicked()
+{
+
+
+}
+
+void MainWindow::on_M90Compress_clicked()
+{
+    QDir rootDir(M90path->text());
+    QString projectDir;
+    rootDir.setFilter(QDir::Dirs);
+    //第一步：遍历当前目录，取出所有文件夹
+    foreach(QFileInfo fullDir, rootDir.entryInfoList()){
+        if(fullDir.fileName() == "." || fullDir.fileName() == "..")
+            continue;
+
+        if ((!fullDir.fileName().startsWith("M")) || (!fullDir.isDir())) continue;
+
+        projectDir = fullDir.absoluteFilePath();
+
+        QDir dir(projectDir);
+        //删除原有压缩包
+        foreach(QString filename, dir.entryList())
+        {
+            if (filename.endsWith("rar") || filename.endsWith("zip"))
+            {
+                qApp->processEvents();
+                QString code_packet = dir.absolutePath()+"\/"+filename;
+                dir.remove(code_packet);
+                break;
+            }
+        }
+        //打包文件夹
+        foreach(QFileInfo fileitem ,dir.entryInfoList())
+        {
+            qDebug()<<fileitem.fileName();
+            if (fileitem.fileName().startsWith("M") && fileitem.isDir())
+            {
+                QString code_dir = fileitem.absoluteFilePath();
+                QString packet_cmd = QString("\"%1\" a -ep1 -r -ibck -o+ \"%2\" \"%3\"")
+                                .arg(m_winRARCfg)
+                                .arg(code_dir+".rar")
+                                .arg(code_dir);
+                qDebug() <<packet_cmd;
+                QProcess pro(0);
+                pro.execute(packet_cmd);
+
+                deleteDir(code_dir);
+            }
+        }
+    }
+    QMessageBox::information(this, tr("提示"), tr("打包清理完成！"));
+}
+
+void MainWindow::on_M90Compile_clicked()
+{
+    QDir rootDir(M90path->text());
+    QString projectDir;
+    rootDir.setFilter(QDir::Dirs);
+    //第一步：遍历当前目录，取出所有文件夹
+    foreach(QFileInfo fullDir, rootDir.entryInfoList()){
+        if(fullDir.fileName() == "." || fullDir.fileName() == "..")
+            continue;
+
+        if ((!fullDir.fileName().startsWith("M")) || (!fullDir.isDir())) continue;
+        projectDir = fullDir.absoluteFilePath();
+        QDir dir(projectDir);
+        foreach(QFileInfo fileitem ,dir.entryInfoList())
+        {
+
+            qDebug()<<fileitem.fileName();
+            //2.删除hex文件
+            if (fileitem.fileName().endsWith("hex"))
+            {
+                dir.remove(fileitem.fileName());
+                break;
+            }
+        }
+        foreach(QFileInfo fileitem ,dir.entryInfoList())
+        {
+            if (fileitem.fileName().startsWith("M") && fileitem.isDir())
+            {
+                QString code_path = fileitem.absoluteFilePath();
+                //查找目录内工程文件后缀
+                //1.1判断路径是否存在
+                QDir dir1(code_path);
+                if(!dir1.exists())
+                {
+                    break;
+                }
+                QFileInfoList InfoList = QDir(code_path).entryInfoList();//获取当前目录所有文件
+                QFileInfoList SuffixInfoList;//定义放提取文件的List
+                //遍历
+                foreach(QFileInfo fileInfo, InfoList )
+                {
+                    if(!fileInfo.isFile()) continue;//不是文件继续，只用于加速，可不加
+                    //后缀不区分大小写，需要区分直接用“==”
+                    if(0==fileInfo.suffix().compare("uvproj", Qt::CaseInsensitive))
+                    {
+                        SuffixInfoList << fileInfo;//指定后缀，加入列表
+                        break;
+                    }
+                }
+                if (InfoList.count()<0){
+                    break;
+                }
+                int old_hexFileTime = QDateTime::currentDateTime().toTime_t();
+                //QString build_cmd = QString("%1 -j0 -r %2 -o build_log.txt").arg(DIR_KEIL).arg(project_path);
+                QString build_cmd = QString("\"%1\" -j0 -b \"%2\"").arg(m_keilCfg).arg(SuffixInfoList[0].absoluteFilePath());
+                //这里的编译选项 -r:rebuild,-b:build
+                QProcess pro(0);
+                pro.execute(build_cmd);
+
+                //拷贝hex出来
+                QDir dir2(code_path + "\\Output\\LPC1788_TengHua_LPC1788_KEIL_CMSIS\\Release_FLASH\\Obj");
+                foreach(QFileInfo fileitem ,dir2.entryInfoList())
+                {
+                    int hexFileTime = fileitem.lastModified().toTime_t();
+
+                    if (fileitem.fileName().endsWith("hex")
+                        && (hexFileTime > old_hexFileTime))
+                    {
+                        //如果已经存在hex，则先删除
+                        if (QFile::copy(fileitem.filePath(), projectDir+"/"+fileitem.fileName()));
+
+
+                    }
+                }
+
+            }
+        }
+    }
+
+    QMessageBox::information(this, tr("提示"), tr("编译完成！"));
+}
+
+void MainWindow::on_M90Change_clicked()
+{
+    QDir rootDir(M90path->text());
+    QString projectDir;
+    rootDir.setFilter(QDir::Dirs);
+    //第一步：遍历当前目录，取出所有文件夹
+    foreach(QFileInfo fullDir, rootDir.entryInfoList()){
+        if(fullDir.fileName() == "." || fullDir.fileName() == "..")
+            continue;
+        projectDir = fullDir.absoluteFilePath();
+        ChangeM90(projectDir);
+
+    }
+    QMessageBox::information(this, tr("提示"), tr("修改完成！"));
+}
+
+void MainWindow::ChangeM90(QString path)
+{
+    m_srcPath->setText(path);
+    QString name = path.mid(path.lastIndexOf("/") + 1);
+    if (name.startsWith("M6090")
+        || name.startsWith("M6080")
+        || name.startsWith("M6070")
+        || name.startsWith("M6060")){
+        name.remove(1,2);
+    }
+    m_name->setText(name);
+    QString currentDate = QDate::currentDate().toString("yyyyMMdd");
+    m_data->setText(currentDate.mid(2));
+
+    m_cb_data->setChecked(true);
+    m_cb_ckCode->setChecked(false);
+    m_cb_password->setChecked(false);
+    m_cb_vsd->setChecked(false);
+    m_cb_vfactor->setChecked(false);
+    m_cb_jiemi->setChecked(false);
+
+    //1.修改目录名称
+    QString src_path = path;
+    QString hex_name = m_name->text();
+    QString soft_name = hex_name.left(hex_name.lastIndexOf("_")+1);
+    m_hex_name = soft_name + m_data->text();
+
+    QString new_path = src_path.left(src_path.lastIndexOf("/")+1) + m_hex_name;
+    m_code_path = new_path;
+
+    QDir dir(src_path);
+    if(!dir.exists())
+    {
+        return;
+    }
+    if (m_cb_data->isChecked())
+    {
+        dir.rename(src_path, new_path);
+        dir.setPath(new_path);
+    }
+
+    QDir dir_new(new_path);
+    foreach(QFileInfo fileitem ,dir_new.entryInfoList())
+    {
+        qDebug()<<fileitem.fileName();
+        if (fileitem.fileName().startsWith("M") && fileitem.isDir())
+        {
+            m_dir_name = fileitem.fileName();
+            //4.修改程序
+            modify_global(fileitem.fileName());
+            //5.修改输出的hex文件名
+            modify_hexfile(fileitem.fileName());
+//            //6.修改加解密
+//            if (m_cb_jiemi->isChecked()){
+//                modify_startup(true);
+//            }else{
+//                modify_startup(false);
+//            }
+            qApp->processEvents();
+        }
+
+    }
+
+
+}
+
 
 void MainWindow::down_row(int row)
 {
@@ -1609,10 +2079,3 @@ void MainWindow::down_row(int row)
 
     m_com_obj->DownLoad(type, cmd, address, filename);
 }
-
-
-
-
-
-
-
