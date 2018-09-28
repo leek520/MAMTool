@@ -294,6 +294,7 @@ bool ComDriver::OpenFile(int type, QString name)
     if (dataStr.isEmpty()){
         QStringList strList;
         //打开数据filename
+        if (type == 7) return true;
         QFile f(name);
         if(!f.open(QIODevice::ReadOnly | QIODevice::Text))
         {
@@ -604,6 +605,10 @@ void ComDriver::ReceiveMsg()
         case 0x5f:      //252k
             if (status){
                 qDebug()<<"Erase success!";
+                if (dtype == 7) {
+                    emit ResProgress_sig(100);
+                    return;
+                }
                 OpenFile(dtype, m_filename);
                 f_status = FetchData(data, &len, cur_pos);
                 if (!f_status){

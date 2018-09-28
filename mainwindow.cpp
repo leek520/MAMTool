@@ -120,8 +120,8 @@ void MainWindow::setUi()
 
 
     m_cb_data->setChecked(true);
-    m_cb_ckCode->setChecked(true);
-    m_cb_password->setChecked(true);
+    //m_cb_ckCode->setChecked(true);
+    //m_cb_password->setChecked(true);
 
     connect(m_start, SIGNAL(clicked(bool)), this, SLOT(on_m_start_clicked()));
     connect(m_build, SIGNAL(clicked(bool)), this, SLOT(on_m_build_clicked()));
@@ -229,8 +229,10 @@ void MainWindow::setUi()
     m_baudRate = "9600";
     m_Parity = "Even";
     m_Stopbit = "1";
-    m_flashType<<"无压缩图片"<<"压缩图片"<<"宋体32字库"<<"菜单"<<"汉字16字库"<<"英文16字库"<<"其他字库";
-    m_flashAddr<<"CharLib(000000)"<<"Char16(420000)"
+    m_flashType<<"无压缩图片"<<"压缩图片"<<"宋体32字库"<<"菜单"<<"汉字16字库"<<"英文16字库"<<"其他字库"<<"擦除Flash";
+    m_flashAddr<<"CharLib(000000)"<<"FirstPic(100000)"
+                <<"ZHChar16(420000)"<<"ENChar16(45f000)"
+
                 <<"Run(300000)"<<"User(30a000)"
                 <<"Fact(346000)"<<"Calc(314000)"
                 <<"Block(31e000)"<<"Hard(30f000)"
@@ -240,11 +242,12 @@ void MainWindow::setUi()
                 <<"MVSD(305000)"<<"FVSD(32d000)"
                 <<"Data(319000)"<<"SetVSD(3c0000)"
                 <<"Mode(378000)"<<"Return(332000)"
-                <<"First(100000)"<<"32CharLib(000000)"
-                <<"Stop(200000)"<<"Load1(23f000)"
-                <<"Load2(27e000)"<<"Unld1(2bd000)"
-                <<"Unld2(37d000)"<<"Fan1(36e000)"
-                <<"Fan2(373000)"
+
+                <<"Stop(200000)"
+                <<"Load1(23f000)"<<"Load2(27e000)"
+                <<"Unld1(2bd000)"<<"Unld2(37d000)"
+                <<"Fan1(36e000)"<<"Fan2(373000)"
+
                 <<"TipRun(350000)"<<"TipPress(355000)"
                 <<"TipPown(35a000)"<<"TipRemote(35f000)"
                 <<"TipBlock(364000)"<<"TipModbus(369000)";
@@ -280,6 +283,8 @@ void MainWindow::setUi()
     m_comfact = new QComboBox();
     m_comfact->addItem("台盛");
     m_comfact->addItem("鑫磊");
+    m_comfact->addItem("太原大汇-动态用户密码");
+    m_comfact->addItem("太原大汇-动态厂家密码");
     m_comfact->setFixedHeight(40);
 
     m_tippass = new QLineEdit;
@@ -292,7 +297,8 @@ void MainWindow::setUi()
     passbox->addWidget(m_tippass);
     passbox->addWidget(m_dynpass);
 
-    connect(m_tippass, SIGNAL(editingFinished()), this, SLOT(cal_pass()));
+    connect(m_tippass, SIGNAL(editingFinished()),
+            this, SLOT(cal_pass()));
 
     //芯片解密
     QGroupBox *devicedecode = new QGroupBox();
@@ -308,7 +314,7 @@ void MainWindow::setUi()
 
     //改6090程序ready页面设计
     QGroupBox *M90Ready = new QGroupBox();
-    M90Ready->setTitle("修改90Ready");
+    M90Ready->setTitle("软件批量升级");
     otherbox->addWidget(M90Ready);
     QGridLayout *M90box = new QGridLayout(M90Ready);
     M90path = new QLineEdit();
@@ -1194,7 +1200,7 @@ void MainWindow::on_actioncfg_triggered()
 {
     m_cfgDialog = new QDialog();
     m_cfgDialog->setWindowTitle("路径设置");
-    m_cfgDialog->resize(300,150);
+    m_cfgDialog->resize(500,156);
     QGridLayout *gridbox = new QGridLayout(m_cfgDialog);
 
     m_tableCfg = new QTableWidget(3,1);
@@ -1363,6 +1369,24 @@ void MainWindow::cal_pass()
         temp2%=10; //
 
         dynpass = temp1+temp2*10+temp3*100+temp4*1000;
+        break;
+    case 2:
+        temp1= (temp1+7)%10;
+        temp2= (temp2+5)%10;
+        temp3= (temp3+0)%10;
+        temp4= (temp4+8)%10;
+
+        dynpass = temp3+temp1*10+temp4*100+temp2*1000;
+
+        break;
+    case 3:
+        temp1= (temp1+4)%10;
+        temp2= (temp2+8)%10;
+        temp3= (temp3+1)%10;
+        temp4= (temp4+2)%10;
+
+        dynpass = temp3+temp4*10+temp1*100+temp2*1000;
+
         break;
     default:
         break;
