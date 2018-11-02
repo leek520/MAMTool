@@ -74,8 +74,8 @@ ComObject::ComObject(QString name, QString baud, QString parity, QString stopbit
             com, SLOT(DownLoad_slt(int,int,int,const QString,int)));
     connect(this, SIGNAL(SendMsg_sig(char*)),
             com, SLOT(SendMsg_slt(char*)));
-    connect(com, SIGNAL(ResProgress_sig(int)),
-            this, SLOT(ResProgress_slt(int)));
+    connect(com, SIGNAL(ResProgress_sig(int, QString)),
+            this, SLOT(ResProgress_slt(int, QString)));
 
 }
 
@@ -89,9 +89,9 @@ void ComObject::SendMsg(char* data)
     emit SendMsg_sig(data);
 }
 
-void ComObject::ResProgress_slt(int pos)
+void ComObject::ResProgress_slt(int pos, QString msg)
 {
-    emit ResProgress_sig(pos);
+    emit ResProgress_sig(pos, msg);
 }
 
 
@@ -260,24 +260,47 @@ bool ComDriver::FetchData(uchar *data, int *len, int start_pos)
                 value = dataStr[pos].toInt(&ok, 10);
             }
             data[i++] =(uchar)((value >> 0) & 0xff);
-        }else if ((dtype == 2) | (dtype == 4) | (dtype == 5) | (dtype == 6)){   //字库
+        }else if ((dtype == 2) | (dtype == 4) |
+                  (dtype == 5) | (dtype == 6) |
+                  (dtype == 9)){   //字库
             pos = start_pos + i;
             if (pos >= dataStr.count())
                 break;
             data[i++] = (uchar)(dataStr[pos].toInt() & 0xff);
             //qDebug()<<pos<<start_pos<<data[i-1];
 
-        }else if(dtype == 3){       //菜单文件
+        }else if((dtype == 3) | (dtype == 10)){       //菜单文件
+            if (dtype == 10){
+                if (m_charList.isEmpty()){
+                    emit ResProgress_sig(ERROR_FILE);
+                    return false;
+                }
+            }
             pos = (start_pos + i) / 128;
             if (pos >= dataStr.count())
                 break;
             //qDebug()<<pos<<start_pos<<i<<dataStr[pos];
             char *szU8 = new char[128];
             memset(szU8, 0, 128);
-            QStringToMultBytes(dataStr[pos], szU8, len);
+            int ret = QStringToMultBytes(dataStr[pos], szU8, len);
+            if (ret == -1) return true;
             memcpy((uchar *)(data+i*sizeof(uchar)), (uchar *)(szU8), 128);
             i += 128;
 
+        }else if((dtype == 11) | (dtype == 12)){  //字体数组
+            pos = start_pos + i;
+            if (pos >= dataStr.count())
+                break;
+            data[i++] = (uchar)(dataStr[pos].toInt(&ok, 16) & 0xff);
+        }else if(dtype == 13){  //测试
+            pos = start_pos + i;
+            if (pos >= dataStr.count())
+                break;
+            if (dataStr[pos].indexOf("0x")>-1 || dataStr[pos].indexOf("0X")>-1){
+                data[i++] = dataStr[pos].toInt(&ok, 16);
+            }else{
+                data[i++] = dataStr[pos].toInt(&ok, 10);
+            }
         }
         if (i>=256)
             break;
@@ -291,10 +314,108 @@ bool ComDriver::FetchData(uchar *data, int *len, int start_pos)
 
 bool ComDriver::OpenFile(int type, QString name)
 {
+    if (dtype == 8){
+        QFile f1(name);
+        if(!f1.open(QIODevice::ReadOnly | QIODevice::Text))
+        {
+            emit ResProgress_sig(ERROR_FILE);
+            return false;
+        }
+        QTextStream input(&f1);
+        m_charList = input.readAll();
+        emit ResProgress_sig(100);
+        f1.close();
+        return false;
+    }
+
     if (dataStr.isEmpty()){
         QStringList strList;
         //打开数据filename
-        if (type == 7) return true;
+        if (dtype == 7) return true;
+
+        int pData;
+        if (dtype == 11){   //字体数组，生成数据放入dataStr中待用
+            pData = CHAR32_FIRST_ADD_SDRAM;
+            for (int i=0;i<FONT_CHAR_LENGTH;i++){
+                dataStr.append("0x10");
+                dataStr.append("0x10");
+                dataStr.append("0x02");
+                dataStr.append("0x00");
+                dataStr.append(QString::number((pData >>  0)&0xff, 16));
+                dataStr.append(QString::number((pData >>  8)&0xff, 16));
+                dataStr.append(QString::number((pData >> 16)&0xff, 16));
+                dataStr.append(QString::number((pData >> 24)&0xff, 16));
+                pData += 66;
+            }
+            for (int i=0;i<FONT_HZ_LENGTH;i++){
+                dataStr.append("0x20");
+                dataStr.append("0x20");
+                dataStr.append("0x04");
+                dataStr.append("0x00");
+                dataStr.append(QString::number((pData >>  0)&0xff, 16));
+                dataStr.append(QString::number((pData >>  8)&0xff, 16));
+                dataStr.append(QString::number((pData >> 16)&0xff, 16));
+                dataStr.append(QString::number((pData >> 24)&0xff, 16));
+                pData += 132;
+            }
+
+            file_byte_count = dataStr.count();
+            return true;
+        }else if (dtype == 12){
+            pData= CHAR16_FIRST_ADD_SDRAM;
+            for (int i=0;i<FONT_CHAR_LENGTH;i++){
+                dataStr.append("0x08");
+                dataStr.append("0x08");
+                dataStr.append("0x01");
+                dataStr.append("0x00");
+                dataStr.append(QString::number((pData >>  0)&0xff, 16));
+                dataStr.append(QString::number((pData >>  8)&0xff, 16));
+                dataStr.append(QString::number((pData >> 16)&0xff, 16));
+                dataStr.append(QString::number((pData >> 24)&0xff, 16));
+                pData += 16;
+            }
+            for (int i=0;i<FONT_HZ_LENGTH;i++){
+                dataStr.append("0x10");
+                dataStr.append("0x10");
+                dataStr.append("0x02");
+                dataStr.append("0x00");
+                dataStr.append(QString::number((pData >>  0)&0xff, 16));
+                dataStr.append(QString::number((pData >>  8)&0xff, 16));
+                dataStr.append(QString::number((pData >> 16)&0xff, 16));
+                dataStr.append(QString::number((pData >> 24)&0xff, 16));
+                pData += 32;
+            }
+        }else if (dtype == 13){
+            dataStr.append("200");
+            dataStr.append("0");    //x0=200
+            dataStr.append("100");
+            dataStr.append("0");    //y0=100
+            dataStr.append("80");
+            dataStr.append("0");    //xsize=80
+            dataStr.append("50");
+            dataStr.append("0");    //ysize=50
+            dataStr.append("0x70");
+            dataStr.append("0x01");    //Id=0x170
+            dataStr.append("2");
+            dataStr.append("0");    //Flag=1<<1
+
+            dataStr.append("0");
+            dataStr.append("0");
+            dataStr.append("0");
+            dataStr.append("0");    //color=0x
+
+            dataStr.append("0xe5");
+            dataStr.append("0x85");
+            dataStr.append("0x98");    //\0
+            dataStr.append("0xe4");    //\xE8\x8F\x9C\xE5\x8D\x95
+            dataStr.append("0xbe");
+            dataStr.append("0x8c");
+
+            file_byte_count = dataStr.count();
+            return true;
+        }
+
+
         QFile f(name);
         if(!f.open(QIODevice::ReadOnly | QIODevice::Text))
         {
@@ -303,7 +424,11 @@ bool ComDriver::OpenFile(int type, QString name)
         }
         QTextStream txtInput(&f);
         QString tmpStr = txtInput.readAll();
-        if ((type ==0) | (type == 1)){   //压缩和无压缩图片的文件处理
+        if (tmpStr.isEmpty()){
+            emit ResProgress_sig(ERROR_FILE);
+            return false;
+        }
+        if ((dtype ==0) | (dtype == 1)){   //压缩和无压缩图片的文件处理
             QRegExp rx1("static GUI_CONST_STORAGE.+\n([.\n]+)GUI_CONST_STORAGE");
             rx1.setMinimal(true);
             int pos = 0;
@@ -316,12 +441,12 @@ bool ComDriver::OpenFile(int type, QString name)
             //根据文本内容判断选择压缩方式是否正确
             int idx = datatmpStr.indexOf("0x");
 
-            if (type == 0){        //下载无压缩，文本中没有注释
+            if (dtype == 0){        //下载无压缩，文本中没有注释
                 if ((datatmpStr[idx+6] != ',') || (datatmpStr[idx+4] == ',')){
                     emit ResProgress_sig(ERROR_PICTYPE0);
                     return false;
                 }
-            }else if (type == 1){  //下载压缩图片，文本中有注释，需要去掉注释
+            }else if (dtype == 1){  //下载压缩图片，文本中有注释，需要去掉注释
                 if ((datatmpStr[idx+6] == ',') || (datatmpStr[idx+4] != ',')){
                     emit ResProgress_sig(ERROR_PICTYPE1);
                     return false;
@@ -343,21 +468,71 @@ bool ComDriver::OpenFile(int type, QString name)
                 dataStr.push_back(tmp);
                 pos += rx.matchedLength();
             }
-            if (type == 0){
+            if (dtype == 0){
                 file_byte_count = dataStr.count() * 2;
             }else{
                 file_byte_count = dataStr.count();
             }
-        }else if ((dtype == 2) | (dtype == 4) | (dtype == 5) | (dtype == 6)){
+        }else if ((dtype == 2) | (dtype == 4) | (dtype == 5) | (dtype == 6) | (dtype == 9)){
             //如果下载的是宋体16，则截取.c文件中的中文字库部分下载
-            if (type == 4){ //宋体16中文字库
+            if (dtype == 4){ //宋体16中文字库
                 tmpStr = tmpStr.mid(tmpStr.indexOf("/* Start of unicode area <CJK Unified Ideographs> */"));
-            }else if (type == 5){ //宋体16英文字库
+            }else if (dtype == 5){ //宋体16英文字库
                 tmpStr = tmpStr.left(tmpStr.indexOf("/* Start of unicode area <CJK Unified Ideographs> */"));
-            }else if (type == 6){   //俄文字库
+            }else if (dtype == 6){   //俄文字库
                 tmpStr = tmpStr.mid(tmpStr.indexOf("/* Start of unicode area <Cyrillic> */"));
             }
             strList = tmpStr.split("\n");
+            if (dtype == 9){ //汉字全字库
+                //如果下载的是自定义字体，则需要重排序
+                QStringList defStrList;
+                QString sun;
+                int iun;
+                bool ok;
+                int j;
+                for(j=0; j<strList.count();j++){
+                    //这里需要记录每个字符的原始unicode和所在行号
+                    int pos = strList[j].indexOf("[");
+                    if (pos > 0){
+                        if (strList[j].indexOf("CharInfo") > 0){
+                            break;
+                        }
+                        sun = strList[j].mid(pos-4, 4);
+                        iun = sun.toInt(&ok, 16);
+                        if (ok){
+                             //这里行号为key，因为qmap是按照key的大小顺序存储，方便后续处理
+                            m_charUnicode.insert(j, iun);
+                        }else{
+                            qDebug()<<strList[j];
+                        }
+                    }
+                }
+                m_charUnicode.insert(j, 0);
+                QList<int> numKeys = m_charUnicode.keys();
+                for (int j=0;j<m_charList.count();j++){
+                    int unc = m_charList[j].unicode();
+                    int num = m_charUnicode.key(unc, -1);   //根据value查找key
+                    if (num < 0) break;
+                    int idx = numKeys.indexOf(num);
+                    if (idx < 0) break;
+                    qDebug()<<unc<<num<<idx;
+                    for(int k=num;k<numKeys[idx+1];k++){
+                        defStrList.append(strList[k]);
+                    }
+                }
+                strList = defStrList;
+                //写入文件
+                QFile fw("defFont.txt");
+                if(!fw.open(QIODevice::WriteOnly | QIODevice::Text))
+                {
+                    return false;
+                }
+                QTextStream output(&fw);
+                for(int i=0;i<strList.count();i++){
+                    output << strList[i] << "\n";
+                }
+                fw.close();
+            }
             QStringList lineData;
             bool status;
             for(int j=0; j<strList.count();j++){
@@ -366,8 +541,9 @@ bool ComDriver::OpenFile(int type, QString name)
                     dataStr += lineData;
                 }
             }
+
             file_byte_count = dataStr.count();
-        }else if (type == 3){      //菜单文件的处理:一行128字节
+        }else if ((dtype == 3) | (dtype == 10)){      //菜单文件的处理:一行128字节
             dataStr = tmpStr.split("\n");
             while(dataStr[dataStr.count()-1].isEmpty()){
                 dataStr.removeLast();
@@ -377,6 +553,7 @@ bool ComDriver::OpenFile(int type, QString name)
         f.close();
 
     }
+
     return true;
 }
 
@@ -389,6 +566,7 @@ int ComDriver::QStringToMultBytes(QString str, char *szUn, int *slen)
     QChar qtmp;
     int num;
     q = str.unicode();
+
     int len = str.count();
     if (len > 42){      //128/3
         len = 42;
@@ -398,12 +576,27 @@ int ComDriver::QStringToMultBytes(QString str, char *szUn, int *slen)
     {
         //https://blog.csdn.net/chary8088/article/details/21226375
         //第一步：先转unicode
-        qtmp =(QChar)*q++;
-        num= qtmp.unicode();
-
+        QString Dstr = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+        if (dtype == 10){   //全汉字字库的菜单
+            if (Dstr.indexOf(str.at(i)) >= 0){  //如果为数字或者字母，则用原始的unicode码
+                qtmp = str.at(i);
+                num = qtmp.unicode();
+            }else{
+                num = CHAR_START_UNICODE + m_charList.indexOf(str.at(i));
+            }
+        }else{
+            if (m_charList.indexOf(str.at(i)) < 0){
+                s_cmd = 0;
+                emit ResProgress_sig(ERROR_NOFINDCHAR, str.at(i));
+                return -1;
+            }
+            qtmp =(QChar)*q++;
+            num= qtmp.unicode();
+        }
         quint8 hi = (quint8)(num >> 8);
         quint8 lo = (quint8)(num);
         data.append (hi);
+
         data.append (lo);
         //第二步：unicode转3字节码
         szUn[i*3+0] = 0xe0 | ((num >> 12) & 0xf);
@@ -423,6 +616,7 @@ bool ComDriver::FontFileLineCal(QString line, QStringList *data)
 {
     QStringList tmpData;
     int tmp = 0;
+
     //先判断是否为字体行
     if ((!line.startsWith("  _")) && (!line.startsWith("  X"))){
         return false;
@@ -446,6 +640,7 @@ bool ComDriver::FontFileLineCal(QString line, QStringList *data)
     *data = tmpData;
     return true;
 }
+
 
 void ComDriver::SendMsg()
 {
@@ -481,6 +676,7 @@ void ComDriver::DownLoad_slt(const int type, const int cmd, const int addr, cons
     receive_count = 0;
     dataStr = QStringList();
     m_dataAll.clear();
+    m_charUnicode.clear();
 
     //检查串口是否打开
     if (!m_com->isOpen()){
@@ -490,6 +686,8 @@ void ComDriver::DownLoad_slt(const int type, const int cmd, const int addr, cons
     if ((addr < 0) || ((uint)addr > 0x80000000)){
         emit ResProgress_sig(ERROR_ADDR);
     }
+    dtype = type;
+
     bool status = OpenFile(type, filename);
     if (!status){
         return;
@@ -499,7 +697,7 @@ void ComDriver::DownLoad_slt(const int type, const int cmd, const int addr, cons
 
     m_cmd = cmd;
     m_flag = flag;
-    dtype = type;
+
     m_address = addr;
     m_filename = filename;
 
@@ -516,7 +714,7 @@ void ComDriver::ReceiveMsg()
 
     int len = 0;
     bool f_status = false;
-    if ((dtype == 2) | (dtype == 4) | (dtype == 5) | (dtype == 6)){
+    if ((dtype == 2) | (dtype == 4) | (dtype == 5) | (dtype == 6) | (dtype == 9)){
         memset(data, 0xff, 512);
     }else{
         memset(data, 0, 512);
@@ -615,6 +813,7 @@ void ComDriver::ReceiveMsg()
                     emit ResProgress_sig(ERROR_FILE);
                     return;
                 }
+                if (s_cmd == 0) return;
                 s_cmd = 0x5b;
                 SendMsgDownLoad(s_cmd, m_address, data, len);
             }else{
@@ -625,9 +824,10 @@ void ComDriver::ReceiveMsg()
             break;
         case 0x5b:
             if (status){
-                emit ResProgress_sig((cur_pos*100)/file_byte_count);
+                int percent = (cur_pos*100)/file_byte_count;
+                emit ResProgress_sig(percent);
 
-                qDebug()<<"Down part success!";
+                qDebug()<<cur_pos<<"Down part success!";
                 f_status = FetchData(data, &len, cur_pos);
                 if (f_status){
                     s_cmd = 0x5b;

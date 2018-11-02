@@ -28,6 +28,7 @@
 #include <QStatusBar>
 #include <QDialogButtonBox>
 #include <QDomDocument>
+#include <QStandardItemModel>
 #include <QAxObject>
 
 #include "comobject.h"
@@ -36,6 +37,8 @@
 #define DIR_CHECK       "C:\\Users\\Administrator\\Desktop\\ChangeName.exe"
 #define DIR_KEIL        "C:\\Keil_v5\\UV4\\UV4.exe"
 
+
+#define TEST_USER 1
 
 class MainWindow : public QMainWindow
 {
@@ -62,7 +65,6 @@ private slots:
     void on_build2_clicked();
     void on_clear2_clicked();
 
-
     void on_m_chooseBtn_clicked();
     void on_m_chooseoutBtn_clicked();
     void on_m_createBtn_clicked();
@@ -82,11 +84,12 @@ private slots:
 
 
     void cal_pass();
+    void charConvertCoder();
 
     void on_insert_clicked();
     void on_delete_clicked();
     void on_downtable_clicked();
-    void ResProgress_slt(int pos);
+    void ResProgress_slt(int pos, QString msg="");
 
     void SetFilePath(QTableWidgetItem* item);
     void SetStartAddress(int index);
@@ -163,6 +166,10 @@ private:
     QComboBox *m_comfact;
     QLineEdit *m_tippass;
     QLabel *m_dynpass;
+
+    QLineEdit *m_charEdit;
+    QLineEdit *m_unicodeEdit;
+    QLineEdit *m_byte3Edit;
 
     QTableWidget *m_table;
     QPushButton *m_exportcfg;

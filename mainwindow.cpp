@@ -15,15 +15,17 @@ MainWindow::~MainWindow()
 void MainWindow::setUi()
 {
     setWindowIcon(QIcon(":/mamtool.ico"));
-    resize(500,450);
+    resize(600,450);
     QTabWidget *w = new QTabWidget();
     setCentralWidget(w);
-    QWidget *main0 = new QWidget(this);
+    QWidget *main0 = new QWidget();
     QWidget *main1 = new QWidget(this);
     QWidget *main2 = new QWidget(this);
     QWidget *main3 = new QWidget(this);
 
+#if TEST_USER
     w->addTab(main0, "程序修改");  
+#endif
     w->addTab(main1, "处理菜单");
     w->addTab(main2, "Flash下载");
     w->addTab(main3, "其它工具");
@@ -58,6 +60,8 @@ void MainWindow::setUi()
 
     m_cb_jiemi = new QCheckBox("解密");
     m_name = new QLineEdit();
+
+
     QString currentDate = QDate::currentDate().toString("yyyyMMdd");
     m_data = new QLineEdit(currentDate.mid(2));
     m_ckCode = new QLineEdit();
@@ -168,6 +172,7 @@ void MainWindow::setUi()
 
     m_colNum = new QLineEdit("1");
     m_createBtn = new QPushButton("确定");
+    m_createBtn->setToolTip(tr("顺序：简体中文->英文->西班牙文->繁体中文->法文->德文"));
     QHBoxLayout *hbox_btn = new QHBoxLayout();
     hbox_btn->addWidget(new QLabel("语言数量："));
     hbox_btn->addWidget(m_colNum);
@@ -178,7 +183,7 @@ void MainWindow::setUi()
 
 
     excel_vbox->addLayout(excel_hbox);
-    excel_vbox->addLayout(excel_hbox1);
+    excel_vbox->addLayout(excel_hbox1);    
     excel_vbox->addLayout(hbox_btn);
 
     connect(m_chooseBtn, SIGNAL(clicked(bool)), this, SLOT(on_m_chooseBtn_clicked()));
@@ -191,7 +196,7 @@ void MainWindow::setUi()
     m_table = new QTableWidget();
 
     m_table->setColumnCount(4);
-    m_table->setColumnWidth(0, 90);
+    m_table->setColumnWidth(0, 110);
     m_table->setColumnWidth(1, 150);
     m_table->setColumnWidth(2, 60);
     m_table->horizontalHeader()->setStretchLastSection(true);//关键
@@ -229,7 +234,14 @@ void MainWindow::setUi()
     m_baudRate = "9600";
     m_Parity = "Even";
     m_Stopbit = "1";
-    m_flashType<<"无压缩图片"<<"压缩图片"<<"宋体32字库"<<"菜单"<<"汉字16字库"<<"英文16字库"<<"其他字库"<<"擦除Flash";
+    m_flashType<<"无压缩图片"<<"压缩图片"
+               <<"宋体32字库"<<"菜单"
+               <<"汉字16字库"<<"英文16字库"
+               <<"其他字库"<<"擦除Flash"
+               <<"全字符文本"<<"全汉字字库"
+               <<"菜单(全汉字)"
+               <<"字体32数组"<<"字体16数组"
+               <<"测试";
     m_flashAddr<<"CharLib(000000)"<<"FirstPic(100000)"
                 <<"ZHChar16(420000)"<<"ENChar16(45f000)"
 
@@ -285,6 +297,10 @@ void MainWindow::setUi()
     m_comfact->addItem("鑫磊");
     m_comfact->addItem("太原大汇-动态用户密码");
     m_comfact->addItem("太原大汇-动态厂家密码");
+    m_comfact->addItem("武汉格高(交换13,+1357)");
+    m_comfact->addItem("博士汉德(2a 3b d+8 4c)");
+    m_comfact->addItem("英纳贝特(3a 2b 5+d 7c)");
+
     m_comfact->setFixedHeight(40);
 
     m_tippass = new QLineEdit;
@@ -297,7 +313,7 @@ void MainWindow::setUi()
     passbox->addWidget(m_tippass);
     passbox->addWidget(m_dynpass);
 
-    connect(m_tippass, SIGNAL(editingFinished()),
+    connect(m_tippass, SIGNAL(returnPressed()),
             this, SLOT(cal_pass()));
 
     //芯片解密
@@ -312,6 +328,27 @@ void MainWindow::setUi()
     fdbox->addWidget(flashDecode, 0, 1);
     connect(flashDecode, SIGNAL(clicked()), this, SLOT(on_flashdeconde_clicked()));
 
+
+    //UNICODE
+    QGroupBox *charCoder = new QGroupBox();
+    QGridLayout *codeBox = new QGridLayout(charCoder);
+    charCoder->setTitle("字符<->Unicode");
+    otherbox->addWidget(charCoder);
+    m_charEdit = new QLineEdit;
+    m_unicodeEdit = new QLineEdit;
+    m_byte3Edit = new QLineEdit;
+    codeBox->addWidget(new QLabel("字符:"),0,0,1,1);
+    codeBox->addWidget(m_charEdit,0,1,1,4);
+    codeBox->addWidget(new QLabel("Unicode:"),1,0,1,1);
+    codeBox->addWidget(m_unicodeEdit,1,1,1,4);
+    codeBox->addWidget(new QLabel("3字节码:"),2,0,1,1);
+    codeBox->addWidget(m_byte3Edit,2,1,1,4);
+    connect(m_charEdit, SIGNAL(returnPressed()),
+            this, SLOT(charConvertCoder()));
+    connect(m_unicodeEdit, SIGNAL(returnPressed()),
+            this, SLOT(charConvertCoder()));
+    connect(m_byte3Edit, SIGNAL(returnPressed()),
+            this, SLOT(charConvertCoder()));
     //改6090程序ready页面设计
     QGroupBox *M90Ready = new QGroupBox();
     M90Ready->setTitle("软件批量升级");
@@ -352,7 +389,210 @@ void MainWindow::setUi()
 
     otherbox->addStretch();
 }
+void MainWindow::cal_pass()
+{
+    int num = m_comfact->currentIndex();
+    unsigned short CalCode = 0, dynpass = 0;
+    unsigned short temp,temp1,temp2,temp3,temp4;
+    unsigned short result1,result2,result3,result4;
+    CalCode = m_tippass->text().toInt();
+    temp1=CalCode%10;	//D
+    temp2=CalCode%100/10;//C
+    temp3=CalCode%1000/100; //B
+    temp4=CalCode/1000;	//A
 
+    switch (num) {
+    case 0:     //台盛
+
+        result4 = (temp4 * 26)%10;//A
+        result3 = (temp3 * 27)%10;//B
+        result2 = (temp2 * 28)%10;//C
+        result1 = (temp1 * 14)%10;//D
+
+        temp = result1;
+        result1 = result4;
+        result4 = temp;
+
+        result4 = (result4+2)%10;//A
+        result3 = (result3+7)%10;//B
+        result2 = (result2+9)%10;//C
+        result1 = (result1+3)%10;//D
+
+        temp = result1;
+        result1 = result4;
+        result4 = temp;
+
+        result4 = (result4+temp4)%10;//A
+        result3 = (result3+temp3)%10;//B
+        result2 = (result2+temp2)%10;//C
+        result1 = (result1+temp1)%10;//D
+
+        dynpass = result1+result2*10+result3*100+result4*1000;
+        break;
+    case 1:     //鑫磊
+
+        temp3 = temp3*9+1;
+        temp2 = temp2*8+1;
+
+        temp4= temp3%10; //
+        temp3/=10; //
+        temp1=temp2/10;
+        temp2%=10; //
+
+        dynpass = temp1+temp2*10+temp3*100+temp4*1000;
+        break;
+    case 2:
+        temp1= (temp1+7)%10;
+        temp2= (temp2+5)%10;
+        temp3= (temp3+0)%10;
+        temp4= (temp4+8)%10;
+
+        dynpass = temp3+temp1*10+temp4*100+temp2*1000;
+
+        break;
+    case 3:
+        temp1= (temp1+4)%10;
+        temp2= (temp2+8)%10;
+        temp3= (temp3+1)%10;
+        temp4= (temp4+2)%10;
+
+        dynpass = temp3+temp4*10+temp1*100+temp2*1000;
+
+        break;
+    case 4:
+        temp1 += 7;	//D
+        temp2 += 1;	//C
+        temp3 += 3; //B
+        temp4 += 5;	//A
+
+        temp4%=10; //E
+        temp3%=10; //F
+        temp2%=10; //G
+        temp1%=10; //H
+        dynpass = temp1+temp4*10+temp3*100+temp2*1000;
+
+        break;
+    case 5:
+        temp4*=2; //A
+        temp3*=3; //B
+        temp2*=4; //C
+        temp1+=8; //D
+
+
+        //
+        temp4%=10; //E
+        temp3%=10; //F
+        temp2%=10; //G
+        temp1%=10; //H
+        dynpass = temp2+temp1*10+temp3*100+temp4*1000;
+        break;
+    case 6:
+        temp4*=3;//a
+        temp3*=2;//b
+        temp2*=7;//c
+        temp1+=5;//d
+
+ //
+       temp4%=10; //E a
+       temp3%=10; //F b
+       temp2%=10; //G c
+       temp1%=10; //H d
+        dynpass = temp2+temp1*10+temp3*100+temp4*1000;
+        break;
+    default:
+        if (temp3 > 7)
+          temp3 = 0;
+        else
+          temp3 = temp3 + 1;
+
+        if (temp1 > 6)
+          temp1 = 0;
+        else
+          temp1 = temp1 + 2;
+
+        temp4%=10; //E
+        temp3%=10; //F
+        temp2%=10; //G
+        temp1%=10; //H
+        dynpass = temp1+temp4*10+temp3*100+temp2*1000;
+        break;
+    }
+
+    m_dynpass->setText(QString("密码：%1").arg(dynpass));
+}
+
+void MainWindow::charConvertCoder()
+{
+    QByteArray data, bdata;
+    QString charTmp, unicodeTmp, byte3Tmp;
+    int num;
+    QString charStr = m_charEdit->text();
+    QString unicodeStr = m_unicodeEdit->text();
+    QString byte3Str = m_byte3Edit->text();
+    if (sender() == m_charEdit){
+        for(int i=0;i<charStr.count();i++){
+            //转unicode
+            num= charStr.at(i).unicode();
+            quint8 hi = (quint8)(num >> 8);
+            quint8 lo = (quint8)(num);
+            data.append (hi);
+            data.append (lo);
+            //转3字节码
+            bdata.append(0xe0 | ((num >> 12) & 0xf));    //剩下4bit
+            bdata.append(0x80 | ((num >> 6) & 0x3f));    //中间6bit
+            bdata.append(0x80 | ((num >> 0) & 0x3f));    //低6bit    
+        }
+        unicodeTmp = data.toHex().data();
+        byte3Tmp = bdata.toHex().data();
+
+
+        unicodeTmp = unicodeTmp.toUpper();
+        unicodeStr.clear();
+        for(int i=0;i<unicodeTmp.count();i=i+4){
+            unicodeStr.append(QString("%1 ").arg(unicodeTmp.mid(i, 4)));
+        }
+        byte3Tmp = byte3Tmp.toUpper();
+        byte3Str.clear();
+        for(int i=0;i<byte3Tmp.count();i=i+2){
+            byte3Str.append(QString("\\x%1").arg(byte3Tmp.mid(i, 2)));
+        }
+
+    }else if (sender() == m_unicodeEdit){
+        unicodeTmp = unicodeStr;
+        unicodeTmp.replace(" ", "");    //去空格
+        unicodeTmp.replace("0x", "");    //去0x
+        unicodeTmp.replace("0X", "");    //去0X
+        int count=unicodeTmp.count();
+        int len=count/4;
+        bool ok;
+        int temp[count];
+        QChar qchar[len];
+        for(int i=0;i<count;i+=4){
+            temp[i]=unicodeTmp.mid(i,4).toInt(&ok,16);//每四位转化为16进制整型
+            qchar[i/4]=temp[i];
+
+            //转3字节码
+            bdata.append(0xe0 | ((temp[i] >> 12) & 0xf));    //剩下4bit
+            bdata.append(0x80 | ((temp[i] >> 6) & 0x3f));    //中间6bit
+            bdata.append(0x80 | ((temp[i] >> 0) & 0x3f));    //低6bit
+        }
+        QString str0(qchar, len);
+        charStr = str0;
+        byte3Tmp = bdata.toHex().data();
+
+        byte3Str.clear();
+        byte3Tmp = byte3Tmp.toUpper();
+        for(int i=0;i<byte3Tmp.count();i=i+2){
+            byte3Str.append(QString("\\x%1").arg(byte3Tmp.mid(i, 2)));
+        }
+    }else if (sender() == m_byte3Edit){
+
+    }
+
+    m_charEdit->setText(charStr);
+    m_unicodeEdit->setText(unicodeStr);
+    m_byte3Edit->setText(byte3Str);
+}
 void MainWindow::SetMenu()
 {
     QAction *actioncfg = new QAction("路径设置", this);
@@ -978,6 +1218,7 @@ void MainWindow::on_build2_clicked()
     on_m_copy_clicked();
 }
 
+
 void MainWindow::on_clear2_clicked()
 {
     on_m_compress_clicked();
@@ -985,6 +1226,7 @@ void MainWindow::on_clear2_clicked()
         return;
     on_m_clear_clicked();
 }
+
 
 void MainWindow::on_m_chooseBtn_clicked()
 {
@@ -1000,6 +1242,8 @@ void MainWindow::on_m_chooseoutBtn_clicked()
 
 void MainWindow::on_m_createBtn_clicked()
 {
+    bool ok;
+    QString useCharList;
     QStringList dirlist;
     dirlist<<"简体中文"<<"英文"<<"西班牙文"<<"繁体中文"<<"法文"<<"德文";
     QStringList suflist;
@@ -1046,28 +1290,100 @@ void MainWindow::on_m_createBtn_clicked()
         int intColStart = pColumns->property("Column").toInt();
         int intRowStart = pRows->property("Row").toInt();
 
-        curCol = m_colNum->text().toInt();
-        if (curCol < 0 || curCol > intCols )
-        {
-            qDebug()<<name<<intColStart<<intCols<<curCol<<"Error col num";
-            continue;
-        }
-        for (int t=0; t<curCol; t++)
-        {
+        curCol = m_colNum->text().toInt(&ok, 10);
+        //输入的是数字
+        if (ok){
+            if (curCol < 0 || curCol > intCols )
+            {
+                qDebug()<<name<<intColStart<<intCols<<curCol<<"Error col num";
+                continue;
+            }
+            for (int t=0; t<curCol; t++)
+            {
+                //2、创建txt
+                QString path = QString("%1\/%2").arg(outDir).arg(dirlist[t]);
+                QDir dir;
+                if (!dir.exists(path))
+                {
+                    dir.mkpath(path);
+                }
+                //QString filename = QString("%1\/%2\/%3.txt").arg(dir.currentPath()).arg(path).arg(name);
+                QString fullname = namelist[i-1] + suflist[t];
+                if (fullname.contains("用户参数") && t==1)
+                {
+                    fullname = "用户参数 -ENG";
+                }
+
+                QString filename = QString("%1\/%2.txt").arg(path).arg(fullname);
+                QFile file(filename);
+                if(!file.open(QIODevice::WriteOnly|QIODevice::Text)){
+                    return;
+                }
+
+                QStringList outstr;
+                int space_num = 0, end_line = 0;
+                for (int j=intRowStart; j<=intRows; j++){
+                    QAxObject *range = pWorkSheet->querySubObject("Cells(int,int)", j, t+2); //获取cell的值
+                    QString value = range->dynamicCall("Value2()").toString();
+
+                    qDebug()<<value.toStdString().c_str();
+
+                    //3、插入txt
+                    outstr << value;
+
+                    //记录空格行的次数
+                    if (value.remove(QRegExp("\\s")) == ""){
+                        space_num += 1;
+                    }else{
+                        space_num = 0;
+                    }
+                }
+                end_line = intRows - intRowStart + 1 - space_num;
+
+                //4、创建txt，并写入文件
+                QTextStream out(&file);
+                out.setCodec(QTextCodec::codecForName("unicode"));//unicode小端模式
+                out.setAutoDetectUnicode(true); //好像没用处
+                QChar head = 0xfeff;//unicode文件头 文本里前两个字节为FFFE
+                out << head;
+
+                for (int i=0;i<end_line;i++) {
+                    out << outstr[i] << "\n";
+                    for(int j=0;j<outstr[i].count();j++){
+                        if (useCharList.indexOf(outstr[i].at(j)) < 0){
+                            useCharList.append(outstr[i].at(j));
+                        }
+                    }
+                }
+
+                file.close();
+
+            }
+        }else{
+            //输入的是关键字
+            int t = 0;
+            QString lan = m_colNum->text().trimmed().toLower();
+            bool hasValue = false;
+            for (t=intColStart; t<=intCols; t++)
+            {
+                QAxObject *range = pWorkSheet->querySubObject("Cells(int,int)", 1, t); //获取cell的值
+                QString value = range->dynamicCall("Value2()").toString();
+                value = value.trimmed().toLower();
+                qDebug()<<value.toStdString().c_str();
+                if (value == lan){
+                    hasValue = true;
+                    break;
+                }
+            }
+            if (hasValue == false) continue;
             //2、创建txt
-            QString path = QString("%1\/%2").arg(outDir).arg(dirlist[t]);
+            QString path = QString("%1\/%2").arg(outDir).arg(lan);
             QDir dir;
             if (!dir.exists(path))
             {
                 dir.mkpath(path);
             }
-            //QString filename = QString("%1\/%2\/%3.txt").arg(dir.currentPath()).arg(path).arg(name);
-            QString fullname = namelist[i-1] + suflist[t];
-            if (fullname.contains("用户参数") && t==1)
-            {
-                fullname = "用户参数 -ENG";
-            }
-
+            QString fullname = namelist[i-1];
             QString filename = QString("%1\/%2.txt").arg(path).arg(fullname);
             QFile file(filename);
             if(!file.open(QIODevice::WriteOnly|QIODevice::Text)){
@@ -1076,8 +1392,8 @@ void MainWindow::on_m_createBtn_clicked()
 
             QStringList outstr;
             int space_num = 0, end_line = 0;
-            for (int j=intRowStart; j<=intRows; j++){
-                QAxObject *range = pWorkSheet->querySubObject("Cells(int,int)", j, t+2); //获取cell的值
+            for (int j=intRowStart+1; j<=intRows; j++){
+                QAxObject *range = pWorkSheet->querySubObject("Cells(int,int)", j, t); //获取cell的值
                 QString value = range->dynamicCall("Value2()").toString();
 
                 qDebug()<<value.toStdString().c_str();
@@ -1092,7 +1408,7 @@ void MainWindow::on_m_createBtn_clicked()
                     space_num = 0;
                 }
             }
-            end_line = intRows - intRowStart + 1 - space_num;
+            end_line = intRows - (intRowStart+1) + 1 - space_num;
 
             //4、创建txt，并写入文件
             QTextStream out(&file);
@@ -1101,17 +1417,36 @@ void MainWindow::on_m_createBtn_clicked()
             QChar head = 0xfeff;//unicode文件头 文本里前两个字节为FFFE
             out << head;
 
-            for (int i=0;i<end_line;i++) {
+            for (int i=0;i<outstr.count();i++) {
                 out << outstr[i] << "\n";
+                for(int j=0;j<outstr[i].count();j++){
+                    if (useCharList.indexOf(outstr[i].at(j)) < 0){
+                        useCharList.append(outstr[i].at(j));
+                    }
+                }
             }
 
             file.close();
-
         }
+
     }
     pWorkBooks->dynamicCall("Close()");
 
     QMessageBox::information(this, "信息", "已完成！");
+
+
+    //4、创建txt，并写入文件
+    QString path = QString("%1\/%2").arg(outDir).arg("xls_Font32.txt");
+    QFile file(path);
+    if(!file.open(QIODevice::WriteOnly|QIODevice::Text)){
+        return;
+    }
+    QTextStream out(&file);
+    out.setCodec(QTextCodec::codecForName("unicode"));//unicode小端模式
+    out.setAutoDetectUnicode(true); //好像没用处
+    QChar head = 0xfeff;//unicode文件头 文本里前两个字节为FFFE
+    out << head;
+    out << useCharList << "\n";
 
 }
 
@@ -1318,82 +1653,7 @@ void MainWindow::on_actioncom_triggered()
 
 }
 
-void MainWindow::cal_pass()
-{
-    int num = m_comfact->currentIndex();
-    unsigned short CalCode = 0, dynpass = 0;
-    unsigned short temp,temp1,temp2,temp3,temp4;
-    unsigned short result1,result2,result3,result4;
-    CalCode = m_tippass->text().toInt();
-    temp1=CalCode%10;	//D
-    temp2=CalCode%100/10;//C
-    temp3=CalCode%1000/100; //B
-    temp4=CalCode/1000;	//A
 
-    switch (num) {
-    case 0:     //台盛
-
-        result4 = (temp4 * 26)%10;//A
-        result3 = (temp3 * 27)%10;//B
-        result2 = (temp2 * 28)%10;//C
-        result1 = (temp1 * 14)%10;//D
-
-        temp = result1;
-        result1 = result4;
-        result4 = temp;
-
-        result4 = (result4+2)%10;//A
-        result3 = (result3+7)%10;//B
-        result2 = (result2+9)%10;//C
-        result1 = (result1+3)%10;//D
-
-        temp = result1;
-        result1 = result4;
-        result4 = temp;
-
-        result4 = (result4+temp4)%10;//A
-        result3 = (result3+temp3)%10;//B
-        result2 = (result2+temp2)%10;//C
-        result1 = (result1+temp1)%10;//D
-
-        dynpass = result1+result2*10+result3*100+result4*1000;
-        break;
-    case 1:     //鑫磊
-
-        temp3 = temp3*9+1;
-        temp2 = temp2*8+1;
-
-        temp4= temp3%10; //
-        temp3/=10; //
-        temp1=temp2/10;
-        temp2%=10; //
-
-        dynpass = temp1+temp2*10+temp3*100+temp4*1000;
-        break;
-    case 2:
-        temp1= (temp1+7)%10;
-        temp2= (temp2+5)%10;
-        temp3= (temp3+0)%10;
-        temp4= (temp4+8)%10;
-
-        dynpass = temp3+temp1*10+temp4*100+temp2*1000;
-
-        break;
-    case 3:
-        temp1= (temp1+4)%10;
-        temp2= (temp2+8)%10;
-        temp3= (temp3+1)%10;
-        temp4= (temp4+2)%10;
-
-        dynpass = temp3+temp4*10+temp1*100+temp2*1000;
-
-        break;
-    default:
-        break;
-    }
-
-    m_dynpass->setText(QString("密码：%1").arg(dynpass));
-}
 
 void MainWindow::on_insert_clicked()
 {
@@ -1406,8 +1666,28 @@ void MainWindow::on_insert_clicked()
 
     m_table->insertRow(cur_num);
 
+/*    m_flashType<<"无压缩图片"<<"压缩图片"
+               <<"宋体32字库"<<"菜单"
+               <<"汉字16字库"<<"英文16字库"
+               <<"其他字库"<<"擦除Flash"
+               <<"全汉字文本"<<"全汉字字库"
+               <<"菜单(全汉字)"
+               <<"字体32数组"<<"字体16数组";
+*/
+    QStandardItemModel *model = new QStandardItemModel(this);
+    QStandardItem *item[m_flashType.count()];
+    for (int i=0;i<m_flashType.count();i++){
+        item[i] = new QStandardItem(m_flashType[i]);
+        model->appendRow(item[i]);
+    }
+    item[ 8]->setToolTip("选择全汉字txt文件，地址和大小不设置，必须选择txt文件");
+    item[ 9]->setToolTip("下载全汉字字库，32和16通用，必须先选择好全汉字txt才可使用");
+    item[10]->setToolTip("下载全汉字字库的菜单使用，必须先选择好全汉字txt才可使用");
+    item[11]->setToolTip("生成并下载宋体32的字体数组，不必选择文件");
+    item[12]->setToolTip("生成并下载宋体16的字体数组，不必选择文件");
+
     QComboBox *item0 = new QComboBox();
-    item0->addItems(m_flashType);
+    item0->setModel(model);
     item0->setCurrentIndex(0);
     //connect(item0, SIGNAL(currentIndexChanged(int)), this, SLOT(SetStartAddress(int)));
     QComboBox *item1 = new QComboBox();
@@ -1451,8 +1731,8 @@ void MainWindow::on_downtable_clicked()
     if (m_com_obj == NULL){
         m_com_obj = new ComObject(m_ComPort, m_baudRate, m_Parity, m_Stopbit);
         m_SerialChange = false;
-        connect(m_com_obj, SIGNAL(ResProgress_sig(int)),
-                this, SLOT(ResProgress_slt(int)));
+        connect(m_com_obj, SIGNAL(ResProgress_sig(int, QString)),
+                this, SLOT(ResProgress_slt(int, QString)));
     }else if(m_SerialChange){
         QString para = m_ComPort + "+" + m_baudRate + "+" + m_Parity + "+" + m_Stopbit;
         m_com_obj->DownLoad(0, 0, 0, para, SERIAL_SET);
@@ -1491,32 +1771,31 @@ void MainWindow::on_downtable_clicked()
 
 }
 
-void MainWindow::ResProgress_slt(int pos)
+void MainWindow::ResProgress_slt(int pos, QString msg)
 {
     switch (pos) {
     case ERROR_OPEN:
-        pStatusBar->hide();
         QMessageBox::information(this, "提示", "串口打开失败，请检查！");
         m_com_obj = NULL;
         m_downtable->setText("下载");
         return;
     case ERROR_FILE:
-        pStatusBar->hide();
         QMessageBox::information(this, "提示", "文件打开失败，请检查！");
         m_downtable->setText("下载");
         return;
     case ERROR_PICTYPE0:
-        pStatusBar->hide();
         QMessageBox::information(this, "提示", "选择的文件为压缩图片格式，请检查！");
         m_downtable->setText("下载");
         return;
     case ERROR_PICTYPE1:
-        pStatusBar->hide();
         QMessageBox::information(this, "提示", "选择的文件为无压缩图片格式，请检查！");
         m_downtable->setText("下载");
         return;
+    case ERROR_NOFINDCHAR:
+        QMessageBox::information(this, "提示", QString("缺少字符:%1！").arg(msg));
+        m_downtable->setText("下载");
+        return;
     case ERROR_ADDR:
-        pStatusBar->hide();
         QMessageBox::information(this, "提示", "擦除地址有误，请检查！");
         m_downtable->setText("下载");
         return;
@@ -1659,8 +1938,8 @@ void MainWindow::on_flashdeconde_clicked()
 {
     if (m_com_obj == NULL){
         m_com_obj = new ComObject(m_ComPort, "9600", "None", "1");
-        connect(m_com_obj, SIGNAL(ResProgress_sig(int)),
-                this, SLOT(ResProgress_slt(int)));
+        connect(m_com_obj, SIGNAL(ResProgress_sig(int, QString)),
+                this, SLOT(ResProgress_slt(int, QString)));
     }
     for (int i=0;i<2;i++){
         m_com_obj->SendMsg("?");
