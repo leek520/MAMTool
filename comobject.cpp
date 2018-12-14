@@ -857,8 +857,6 @@ void ComDriver::ReceiveMsg()
 
             }
             break;
-        case 0xff:
-
         default:
             break;
         }

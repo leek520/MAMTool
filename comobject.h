@@ -20,6 +20,7 @@
 #define CANCEL_OK       -15
 #define SERIAL_SET      -16
 
+#define RECEIVE_MSG     -20
 //0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz<>():,.;!+-*=
 #define FONT_CHAR_LENGTH   10+26+26+14  //10个数字，26个大写字母，26个小写字母，15个窄符号
 

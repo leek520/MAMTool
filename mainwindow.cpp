@@ -13,8 +13,7 @@ MainWindow::~MainWindow()
 }
 
 void MainWindow::setUi()
-{
-    setWindowIcon(QIcon(":/mamtool.ico"));
+{    setWindowIcon(QIcon(":/mamtool.ico"));
     resize(600,450);
     QTabWidget *w = new QTabWidget();
     setCentralWidget(w);
@@ -146,45 +145,54 @@ void MainWindow::setUi()
 
     //处理菜单表格
     QVBoxLayout *excel_vbox = new QVBoxLayout(main1);
-    QHBoxLayout *excel_hbox = new QHBoxLayout();
+    QGroupBox *excel_box1 = new QGroupBox(main1);
+    QGroupBox *excel_box2 = new QGroupBox(main1);
+    QGridLayout *box1_layout = new QGridLayout(excel_box1);
+    QGridLayout *box2_layout = new QGridLayout(excel_box2);
+
     QString currentPathx = QDir::currentPath();
     //QString currentPath = "D:\\2-Work\\leek.project\\mam_tools\\xlsx\\菜单_6070BZ_E22.xls";
     m_srcPathx = new QLineEdit(currentPathx);
     m_chooseBtn = new QPushButton("选择");
-    excel_hbox->addWidget(new QLabel("表格路径："));
-    excel_hbox->addWidget(m_srcPathx);
-    excel_hbox->addWidget(m_chooseBtn);
-    excel_hbox->setStretch(0,1);
-    excel_hbox->setStretch(1,5);
-    excel_hbox->setStretch(2,1);
 
-    QHBoxLayout *excel_hbox1 = new QHBoxLayout();
-    QString outPath = QDir::currentPath();
-
-    m_outPath = new QLineEdit(outPath);
+    m_outPath = new QLineEdit(QDir::currentPath());
     m_chooseoutBtn = new QPushButton("选择");
-    excel_hbox1->addWidget(new QLabel("输出路径："));
-    excel_hbox1->addWidget(m_outPath);
-    excel_hbox1->addWidget(m_chooseoutBtn);
-    excel_hbox1->setStretch(0,1);
-    excel_hbox1->setStretch(1,5);
-    excel_hbox1->setStretch(2,1);
 
     m_colNum = new QLineEdit("1");
+    m_colNum->setToolTip(tr("输入3，则提取前3种语言；输入english，则提取第一行为该关键字的语言列"));
     m_createBtn = new QPushButton("确定");
     m_createBtn->setToolTip(tr("顺序：简体中文->英文->西班牙文->繁体中文->法文->德文"));
-    QHBoxLayout *hbox_btn = new QHBoxLayout();
-    hbox_btn->addWidget(new QLabel("语言数量："));
-    hbox_btn->addWidget(m_colNum);
-    hbox_btn->addWidget(m_createBtn);
-    hbox_btn->setStretch(0,1);
-    hbox_btn->setStretch(1,5);
-    hbox_btn->setStretch(2,1);
 
 
-    excel_vbox->addLayout(excel_hbox);
-    excel_vbox->addLayout(excel_hbox1);    
-    excel_vbox->addLayout(hbox_btn);
+    box1_layout->addWidget(new QLabel("表格路径："), 0,0,1,1);
+    box1_layout->addWidget(m_srcPathx, 0,1,1,1);
+    box1_layout->addWidget(m_chooseBtn, 0,2,1,1);
+    box1_layout->addWidget(new QLabel("输出路径："), 1,0,1,1);
+    box1_layout->addWidget(m_outPath, 1,1,1,1);
+    box1_layout->addWidget(m_chooseoutBtn, 1,2,1,1);
+
+    box1_layout->addWidget(new QLabel("语言数量："), 2,0,1,1);
+    box1_layout->addWidget(m_colNum, 2,1,1,2);
+    box1_layout->setColumnStretch(0, 1);
+    box1_layout->setColumnStretch(1, 4);
+    box1_layout->setColumnStretch(2, 1);
+
+
+    m_srcTxtPath = new QTextEdit();
+    m_colTxtNum = new QLineEdit("1");
+    box2_layout->addWidget(new QLabel("字符集txt："), 0,0,1,1);
+    box2_layout->addWidget(m_srcTxtPath, 0,1,1,2);
+    box2_layout->addWidget(new QLabel("统计语言列："), 1,0,1,1);
+    box2_layout->addWidget(m_colTxtNum, 1,1,1,2);
+    box2_layout->setColumnStretch(0, 1);
+    box2_layout->setColumnStretch(1, 4);
+    box2_layout->setColumnStretch(2, 1);
+
+    excel_box1->setTitle("提取菜单到文本txt");
+    excel_box2->setTitle("统计指定语言列所用到的字符");
+    excel_vbox->addWidget(excel_box1);
+    excel_vbox->addWidget(excel_box2);
+    excel_vbox->addWidget(m_createBtn);
 
     connect(m_chooseBtn, SIGNAL(clicked(bool)), this, SLOT(on_m_chooseBtn_clicked()));
     connect(m_chooseoutBtn, SIGNAL(clicked(bool)), this, SLOT(on_m_chooseoutBtn_clicked()));
@@ -212,22 +220,25 @@ void MainWindow::setUi()
     m_delete->setFixedHeight(40);
     m_downtable = new QPushButton("下载");
     m_downtable->setFixedHeight(40);
+    m_stopBtn = new QPushButton("暂停");
+    m_stopBtn->setFixedHeight(40);
     connect(m_exportcfg, SIGNAL(clicked(bool)), this, SLOT(on_exportcfg_clicked()));
     connect(m_inportcfg, SIGNAL(clicked(bool)), this, SLOT(on_inportcfg_clicked()));
     connect(m_insert, SIGNAL(clicked(bool)), this, SLOT(on_insert_clicked()));
     connect(m_delete, SIGNAL(clicked(bool)), this, SLOT(on_delete_clicked()));
     connect(m_downtable, SIGNAL(clicked(bool)), this, SLOT(on_downtable_clicked()));
+    connect(m_stopBtn, SIGNAL(clicked(bool)), this, SLOT(on_stopBtn_clicked()));
     connect(m_table, SIGNAL(itemDoubleClicked(QTableWidgetItem*)),
             this, SLOT(SetFilePath(QTableWidgetItem*)));
 
 
-    tgbox->addWidget(m_table,0,0,1,5);
+    tgbox->addWidget(m_table,0,0,1,6);
     tgbox->addWidget(m_exportcfg,1,1,1,1);
     tgbox->addWidget(m_inportcfg,1,0,1,1);
     tgbox->addWidget(m_insert,1,2,1,1);
     tgbox->addWidget(m_delete,1,3,1,1);
     tgbox->addWidget(m_downtable,1,4,1,1);
-
+    tgbox->addWidget(m_stopBtn,1,5,1,1);
 
     m_com_obj = NULL;
     m_ComPort = "COM1";
@@ -275,12 +286,13 @@ void MainWindow::setUi()
 
     QLabel *pLabel = new QLabel();
     m_progresstext = new QLabel();
+    m_receivetext = new QLabel();
     pLabel->setText("请稍候...");
 
     pStatusBar->addWidget(pLabel);//添加到状态栏的左边
     pStatusBar->addWidget(pProgressBar);
     pStatusBar->addWidget(m_progresstext);//添加到状态栏的左边
-
+    pStatusBar->addWidget(m_receivetext);//添加到状态栏的左边
     m_SerialChange = false;
 
 
@@ -619,6 +631,30 @@ void MainWindow::on_m_start_clicked()
     m_loglist->clear();
     //1.修改目录名称
     QString hex_name = m_name->text();
+
+    //检查软件更改的名字和原软件是否相符合，如不能从M80M改M80
+    QString nameTmp = src_path.mid(src_path.lastIndexOf("/")+1);
+    int idx1 = hex_name.indexOf("_");
+    int idx2 = nameTmp.indexOf("_");
+    QString nameTmp1,nameTmp2;
+    if (nameTmp[idx2-1] == 'M'){
+        nameTmp1 = hex_name.mid(idx1-3, 3);
+        nameTmp2 = nameTmp.mid(idx2-3, 3);
+    }else{
+        nameTmp1 = hex_name.mid(idx1-2, 2);
+        nameTmp2 = nameTmp.mid(idx2-2, 2);
+    }
+    qDebug()<<nameTmp1<<nameTmp2;
+    if (nameTmp1 != nameTmp2){
+        QMessageBox::warning(this, tr("提示"),tr("修改的软件名和原软件不符合"));
+        status = false;
+        return;
+    }else{
+        status = true;
+    }
+
+
+
     soft_name = hex_name.left(hex_name.lastIndexOf("_")+1);
     m_hex_name = soft_name + m_data->text();
 
@@ -1214,6 +1250,7 @@ void MainWindow::on_m_download_clicked()
 void MainWindow::on_build2_clicked()
 {
     on_m_start_clicked();
+    if (!status) return;
     on_m_build_clicked();
     on_m_copy_clicked();
 }
@@ -1243,7 +1280,7 @@ void MainWindow::on_m_chooseoutBtn_clicked()
 void MainWindow::on_m_createBtn_clicked()
 {
     bool ok;
-    QString useCharList;
+    QString useCharList = m_srcTxtPath->toPlainText();
     QStringList dirlist;
     dirlist<<"简体中文"<<"英文"<<"西班牙文"<<"繁体中文"<<"法文"<<"德文";
     QStringList suflist;
@@ -1316,7 +1353,7 @@ void MainWindow::on_m_createBtn_clicked()
 
                 QString filename = QString("%1\/%2.txt").arg(path).arg(fullname);
                 QFile file(filename);
-                if(!file.open(QIODevice::WriteOnly|QIODevice::Text)){
+                if(!file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)){
                     return;
                 }
 
@@ -1326,7 +1363,7 @@ void MainWindow::on_m_createBtn_clicked()
                     QAxObject *range = pWorkSheet->querySubObject("Cells(int,int)", j, t+2); //获取cell的值
                     QString value = range->dynamicCall("Value2()").toString();
 
-                    qDebug()<<value.toStdString().c_str();
+                    qDebug()<<value;
 
                     //3、插入txt
                     outstr << value;
@@ -1349,6 +1386,7 @@ void MainWindow::on_m_createBtn_clicked()
 
                 for (int i=0;i<end_line;i++) {
                     out << outstr[i] << "\n";
+                    if (m_colTxtNum->text().toInt() != t+1) continue;
                     for(int j=0;j<outstr[i].count();j++){
                         if (useCharList.indexOf(outstr[i].at(j)) < 0){
                             useCharList.append(outstr[i].at(j));
@@ -1419,6 +1457,7 @@ void MainWindow::on_m_createBtn_clicked()
 
             for (int i=0;i<outstr.count();i++) {
                 out << outstr[i] << "\n";
+                if (m_colTxtNum->text().toInt() != t+1) continue;
                 for(int j=0;j<outstr[i].count();j++){
                     if (useCharList.indexOf(outstr[i].at(j)) < 0){
                         useCharList.append(outstr[i].at(j));
@@ -1436,9 +1475,9 @@ void MainWindow::on_m_createBtn_clicked()
 
 
     //4、创建txt，并写入文件
-    QString path = QString("%1\/%2").arg(outDir).arg("xls_Font32.txt");
+    QString path = QString("%1\/%2").arg(outDir).arg("xls_Font.txt");
     QFile file(path);
-    if(!file.open(QIODevice::WriteOnly|QIODevice::Text)){
+    if(!file.open(QIODevice::ReadWrite|QIODevice::Text)){
         return;
     }
     QTextStream out(&file);
@@ -1446,9 +1485,15 @@ void MainWindow::on_m_createBtn_clicked()
     out.setAutoDetectUnicode(true); //好像没用处
     QChar head = 0xfeff;//unicode文件头 文本里前两个字节为FFFE
     out << head;
-    out << useCharList << "\n";
+    for (int i=0;i<useCharList.count();i++) {
+        out << useCharList[i];
+    }
+    file.close();
 
+    m_srcTxtPath->setText(useCharList);
 }
+
+
 
 
 
@@ -1771,6 +1816,15 @@ void MainWindow::on_downtable_clicked()
 
 }
 
+void MainWindow::on_stopBtn_clicked()
+{
+    if (m_stopBtn->text() == "开始"){
+        m_stopBtn->setText("暂停");
+    }else{
+        m_stopBtn->setText("开始");
+    }
+}
+
 void MainWindow::ResProgress_slt(int pos, QString msg)
 {
     switch (pos) {
@@ -1801,6 +1855,9 @@ void MainWindow::ResProgress_slt(int pos, QString msg)
         return;
     case DECODE_OK:
         QMessageBox::information(this, "提示", "芯片已解密！");
+        return;
+    case RECEIVE_MSG:
+        m_receivetext->setText(msg);
         return;
     case CANCEL_OK:
         m_downtable->setText("下载");
@@ -1891,6 +1948,7 @@ void MainWindow::on_inportcfg_clicked()
     }
     m_table->setRowCount(0);
     QTextStream txtInput(&file);
+
     QString lineStr;
     QComboBox *type, *address, *size;
     QStringList dataList;

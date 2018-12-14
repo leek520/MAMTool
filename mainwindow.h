@@ -89,6 +89,7 @@ private slots:
     void on_insert_clicked();
     void on_delete_clicked();
     void on_downtable_clicked();
+    void on_stopBtn_clicked();
     void ResProgress_slt(int pos, QString msg="");
 
     void SetFilePath(QTableWidgetItem* item);
@@ -117,6 +118,9 @@ private:
     QLineEdit *m_srcPathx;
     QLineEdit *m_outPath;
     QLineEdit *m_colNum;
+
+    QTextEdit *m_srcTxtPath;
+    QLineEdit *m_colTxtNum;
 
     QGridLayout *m_gbox;
     QList<QComboBox *> m_comboxlist;
@@ -158,6 +162,7 @@ private:
     QPushButton *m_modfiy_build;
     QPushButton *m_compress_clear;
     bool m_jiemi;
+    bool status;
     QString m_winRARCfg;
     QString m_keilCfg;
     QString m_checkCfg;
@@ -177,7 +182,7 @@ private:
     QPushButton *m_insert;
     QPushButton *m_delete;
     QPushButton *m_downtable;
-
+    QPushButton *m_stopBtn;
 
     QStringList m_flashType;
     QStringList m_flashAddr;
@@ -191,6 +196,7 @@ private:
     QStatusBar *pStatusBar;
     QProgressBar * pProgressBar;
     QLabel *m_progresstext;
+    QLabel *m_receivetext;
     QList<int> m_downloadRow;
     QDialog *m_cfgDialog;
     QDialog *m_comDialog;
