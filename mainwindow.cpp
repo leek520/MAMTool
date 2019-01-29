@@ -3,6 +3,7 @@
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
+    setAcceptDrops(true);
     setUi();
     SetMenu();
 }
@@ -11,7 +12,61 @@ MainWindow::~MainWindow()
 {
 
 }
+void MainWindow::dragEnterEvent(QDragEnterEvent* event)
+{
+    //如果类型excel表格才接受
+   if(!event->mimeData()->urls()[0].fileName().isEmpty())
+       event->acceptProposedAction();
+    else
+       event->ignore();//否则不接受鼠标事件
+}
+//放下事件
+void MainWindow::dropEvent(QDropEvent* event)
+{
+    const QMimeData* qm=event->mimeData();//获取MIMEData
+    QString filename = qm->urls()[0].toLocalFile();
+    QFileInfo dropFile(filename);
+    QTabWidget *tab = ((QTabWidget *)this->centralWidget());
+    QPoint cur_pos = tab->currentWidget()->mapFromGlobal(QCursor::pos());
+    switch (tab->currentIndex()) {
+    case 0:
+        if (m_srcPath->geometry().contains(cur_pos) && dropFile.isDir()){
+            m_srcPath->setText(filename);
+        }
+        break;
+    case 1:
+        if (m_srcPathx->geometry().contains(cur_pos) && dropFile.suffix().contains("xls")){
+            m_srcPathx->setText(filename);
+        }else if (m_outPath->geometry().contains(cur_pos) && dropFile.isDir()){
+            m_outPath->setText(filename);
+        }
+        break;
+    case 2:
+        if (m_table->geometry().contains(cur_pos) && dropFile.suffix().contains("ini")){
+            inportcfg(filename);
+        }
+        break;
+    case 3:
+        if (m_picPath->geometry().contains(cur_pos))
+            m_picPath->setText(filename);
+            if (dropFile.suffix().toLower().contains("bmp")){
+                QFileInfo file(filename);
+                m_picOut->setText(file.baseName());
+            }else if (dropFile.isDir()){
+                QDir dir(filename);
+                foreach(QFileInfo file, dir.entryList())
+                {
+                    if (file.suffix().toLower().contains("bmp")){
+                        bmpToCfile(dir.absolutePath() + "/" + file.filePath(), file.baseName());
+                    }
+            }
+        }
+        break;
+    default:
+        break;
+    }
 
+}
 void MainWindow::setUi()
 {    setWindowIcon(QIcon(":/mamtool.ico"));
     resize(600,450);
@@ -21,13 +76,33 @@ void MainWindow::setUi()
     QWidget *main1 = new QWidget(this);
     QWidget *main2 = new QWidget(this);
     QWidget *main3 = new QWidget(this);
-
+    QWidget *main4 = new QWidget(this);
 #if TEST_USER
     w->addTab(main0, "程序修改");  
 #endif
     w->addTab(main1, "处理菜单");
     w->addTab(main2, "Flash下载");
+    w->addTab(main4, "图片处理");
     w->addTab(main3, "其它工具");
+
+    QGridLayout *glayout = new QGridLayout(main4);
+    m_picPath = new QLineEdit(QDir::currentPath());
+    m_picOut = new QLineEdit();
+    m_picType = new QComboBox();
+    m_picType->addItems(QStringList()<<"565无压缩"<<"565压缩");
+    m_picBtn = new QPushButton("转换");
+    m_picChooseBtn = new QPushButton("选择文件");
+    glayout->addWidget(new QLabel("路径："), 0, 0, 1, 1);
+    glayout->addWidget(m_picPath, 0, 1, 1, 1);
+    glayout->addWidget(m_picChooseBtn, 0, 2, 1, 1);
+    glayout->addWidget(new QLabel("输出文件名："), 1, 0, 1, 1);
+    glayout->addWidget(m_picOut, 1, 1, 1, 2);
+    glayout->addWidget(new QLabel("转换格式："), 2, 0, 1, 1);
+    glayout->addWidget(m_picType, 2, 1, 1, 2);
+
+    glayout->addWidget(m_picBtn, 3, 0, 1, 3);
+    connect(m_picBtn, SIGNAL(clicked(bool)), this, SLOT(on_m_picBtn_clicked()));
+    connect(m_picChooseBtn, SIGNAL(clicked(bool)), this, SLOT(on_m_picChooseBtn_clicked()));
 
 
     QVBoxLayout *vbox = new QVBoxLayout(main0);
@@ -178,12 +253,15 @@ void MainWindow::setUi()
     box1_layout->setColumnStretch(2, 1);
 
 
-    m_srcTxtPath = new QTextEdit();
+    m_srcTxtPath32 = new QTextEdit();
+    m_srcTxtPath16 = new QTextEdit();
     m_colTxtNum = new QLineEdit("1");
-    box2_layout->addWidget(new QLabel("字符集txt："), 0,0,1,1);
-    box2_layout->addWidget(m_srcTxtPath, 0,1,1,2);
-    box2_layout->addWidget(new QLabel("统计语言列："), 1,0,1,1);
-    box2_layout->addWidget(m_colTxtNum, 1,1,1,2);
+    box2_layout->addWidget(new QLabel("32字符集txt："), 0,0,1,2);
+    box2_layout->addWidget(new QLabel("16字符集txt："), 0,2,1,1);
+    box2_layout->addWidget(m_srcTxtPath32, 1,0,1,2);
+    box2_layout->addWidget(m_srcTxtPath16, 1,2,1,1);
+    box2_layout->addWidget(new QLabel("统计语言列："), 2,0,1,1);
+    box2_layout->addWidget(m_colTxtNum, 2,1,1,2);
     box2_layout->setColumnStretch(0, 1);
     box2_layout->setColumnStretch(1, 4);
     box2_layout->setColumnStretch(2, 1);
@@ -232,13 +310,13 @@ void MainWindow::setUi()
             this, SLOT(SetFilePath(QTableWidgetItem*)));
 
 
-    tgbox->addWidget(m_table,0,0,1,6);
+    tgbox->addWidget(m_table,0,0,1,5);
     tgbox->addWidget(m_exportcfg,1,1,1,1);
     tgbox->addWidget(m_inportcfg,1,0,1,1);
     tgbox->addWidget(m_insert,1,2,1,1);
     tgbox->addWidget(m_delete,1,3,1,1);
     tgbox->addWidget(m_downtable,1,4,1,1);
-    tgbox->addWidget(m_stopBtn,1,5,1,1);
+    //tgbox->addWidget(m_stopBtn,1,5,1,1);
 
     m_com_obj = NULL;
     m_ComPort = "COM1";
@@ -1280,7 +1358,8 @@ void MainWindow::on_m_chooseoutBtn_clicked()
 void MainWindow::on_m_createBtn_clicked()
 {
     bool ok;
-    QString useCharList = m_srcTxtPath->toPlainText();
+    QString useCharList32 = m_srcTxtPath32->toPlainText();
+    QString useCharList16 = m_srcTxtPath16->toPlainText();
     QStringList dirlist;
     dirlist<<"简体中文"<<"英文"<<"西班牙文"<<"繁体中文"<<"法文"<<"德文";
     QStringList suflist;
@@ -1384,12 +1463,15 @@ void MainWindow::on_m_createBtn_clicked()
                 QChar head = 0xfeff;//unicode文件头 文本里前两个字节为FFFE
                 out << head;
 
-                for (int i=0;i<end_line;i++) {
-                    out << outstr[i] << "\n";
+                for (int k=0;k<end_line;k++) {
+                    out << outstr[k] << "\n";
                     if (m_colTxtNum->text().toInt() != t+1) continue;
-                    for(int j=0;j<outstr[i].count();j++){
-                        if (useCharList.indexOf(outstr[i].at(j)) < 0){
-                            useCharList.append(outstr[i].at(j));
+                    for(int j=0;j<outstr[k].count();j++){
+                        if (useCharList32.indexOf(outstr[k].at(j)) < 0){
+                            useCharList32.append(outstr[k].at(j));
+                        }
+                        if ((i == 7) && (k > 55) && (k < 80) && (useCharList16.indexOf(outstr[k].at(j)) < 0)){
+                            useCharList16.append(outstr[k].at(j));
                         }
                     }
                 }
@@ -1455,12 +1537,15 @@ void MainWindow::on_m_createBtn_clicked()
             QChar head = 0xfeff;//unicode文件头 文本里前两个字节为FFFE
             out << head;
 
-            for (int i=0;i<outstr.count();i++) {
-                out << outstr[i] << "\n";
+            for (int k=0;k<end_line;k++) {
+                out << outstr[k] << "\n";
                 if (m_colTxtNum->text().toInt() != t+1) continue;
-                for(int j=0;j<outstr[i].count();j++){
-                    if (useCharList.indexOf(outstr[i].at(j)) < 0){
-                        useCharList.append(outstr[i].at(j));
+                for(int j=0;j<outstr[k].count();j++){
+                    if (useCharList32.indexOf(outstr[k].at(j)) < 0){
+                        useCharList32.append(outstr[k].at(j));
+                    }
+                    if ((i == 7) && (k > 55) && (k < 80) && (useCharList16.indexOf(outstr[k].at(j)) < 0)){
+                        useCharList16.append(outstr[k].at(j));
                     }
                 }
             }
@@ -1485,16 +1570,68 @@ void MainWindow::on_m_createBtn_clicked()
     out.setAutoDetectUnicode(true); //好像没用处
     QChar head = 0xfeff;//unicode文件头 文本里前两个字节为FFFE
     out << head;
-    for (int i=0;i<useCharList.count();i++) {
-        out << useCharList[i];
+    for (int i=0;i<useCharList32.count();i++) {
+        out << useCharList32[i];
     }
     file.close();
 
-    m_srcTxtPath->setText(useCharList);
+    m_srcTxtPath32->setText(useCharList32);
+    m_srcTxtPath16->setText(useCharList16);
 }
 
+void MainWindow::on_m_picChooseBtn_clicked()
+{
+    QString strFile = QFileDialog::getOpenFileName(this,
+                                                   QStringLiteral("选择图片文件"),"",tr("image file(*.bmp *.BMP *.png *.jpg)"));
+    if (strFile.isEmpty()) return;
+    m_picPath->setText(strFile);
 
+    QFileInfo file(strFile);
+    m_picOut->setText(file.baseName());
 
+    //imageTobmp(strFile);
+}
+
+void MainWindow::on_m_picBtn_clicked()
+{
+    QFileInfo dropFile(m_picPath->text());
+    if (dropFile.suffix().toLower().contains("bmp")){
+        bmpToCfile(m_picPath->text(), m_picOut->text());
+    }else if (dropFile.isDir()){
+        QDir dir(m_picPath->text());
+        foreach(QFileInfo file, dir.entryList())
+        {
+            if (file.suffix().toLower().contains("bmp")){
+                bmpToCfile(dir.absolutePath() + "/" + file.filePath(), file.baseName());
+            }
+        }
+    }
+}
+
+void MainWindow::bmpToCfile(QString filename, QString outname)
+{
+    QString EXE_PATH = QDir::currentPath() + "/BmpCvt.exe";
+    int type = (m_picType->currentIndex()==0)?8:12;
+    QString build_cmd = QString("start \"\" /min \"%1\" \"%2\" -saveas%3,1,%4 -exit")
+            .arg(EXE_PATH)
+            .arg(filename)
+            .arg(outname)
+            .arg(type);
+    system(build_cmd.toLocal8Bit());
+    qDebug()<<build_cmd;
+//    QProcess pro(0);
+//    pro.start(build_cmd);
+//    pro.waitForStarted(100);
+//    pro.waitForFinished(100);
+//    qDebug()<<QString::fromLocal8Bit(pro.readAllStandardError());
+}
+
+void MainWindow::imageTobmp(QString filename)
+{
+    QImage img(filename);
+    img.convertToFormat(QImage::Format_ARGB8565_Premultiplied);
+    img.save(filename, "bmp");
+}
 
 
 int MainWindow::build_check()
@@ -1940,8 +2077,12 @@ void MainWindow::on_inportcfg_clicked()
 {
     QString file_dir = QFileDialog::getOpenFileName(this, tr("选择配置文件"), "", "Config(*.ini *.txt);;");
     if(file_dir.isEmpty() ) return;
+    inportcfg(file_dir);
+}
 
-    QFile file(file_dir);
+void MainWindow::inportcfg(QString filename)
+{
+    QFile file(filename);
     if(!file.open(QIODevice::ReadOnly | QIODevice::Text))
     {
         return;

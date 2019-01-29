@@ -1,4 +1,12 @@
-﻿
+﻿/******************************************************************************
+Copyright (c) 2018 PLT. All Rights Reserved.
+* @file   :
+* @brief  :
+* @author :leek
+* @date   :2018/12/24
+* @description:
+*******************************************************************************/
+
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 #include <QCoreApplication>
@@ -30,7 +38,11 @@
 #include <QDomDocument>
 #include <QStandardItemModel>
 #include <QAxObject>
-
+#include <QDragEnterEvent>
+#include <QMimeData>
+#include <QDropEvent>
+#include <QUrl>
+#include <QImage>
 #include "comobject.h"
 
 #define DIR_WINRAR      "C:\\Program Files\\WinRAR\\WinRAR.exe"
@@ -51,7 +63,9 @@ public:
     void setUi();
     void SetMenu();
     int build_check();
-
+protected:
+    void dragEnterEvent(QDragEnterEvent*event);//拖动进入事件
+    void dropEvent(QDropEvent*event);
 private slots:
     void on_m_start_clicked();
     void on_m_check_clicked();
@@ -69,7 +83,10 @@ private slots:
     void on_m_chooseoutBtn_clicked();
     void on_m_createBtn_clicked();
 
-
+    void on_m_picChooseBtn_clicked();
+    void on_m_picBtn_clicked();
+    void bmpToCfile(QString filename, QString outname);
+    void imageTobmp(QString filename);
 
     void modify_global(QString name);
     void modify_hexfile(QString name);
@@ -98,7 +115,7 @@ private slots:
 
     void on_exportcfg_clicked();
     void on_inportcfg_clicked();
-
+    void inportcfg(QString filename);
     void on_flashdeconde_clicked();
 
     void on_M90Uncomp_clicked();
@@ -119,7 +136,8 @@ private:
     QLineEdit *m_outPath;
     QLineEdit *m_colNum;
 
-    QTextEdit *m_srcTxtPath;
+    QTextEdit *m_srcTxtPath32;
+    QTextEdit *m_srcTxtPath16;
     QLineEdit *m_colTxtNum;
 
     QGridLayout *m_gbox;
@@ -203,6 +221,13 @@ private:
     bool m_SerialChange;
 
     QLineEdit *M90path;
+
+
+    QLineEdit *m_picPath;
+    QLineEdit *m_picOut;
+    QComboBox *m_picType;
+    QPushButton *m_picBtn;
+    QPushButton *m_picChooseBtn;
 };
 
 #endif // MAINWINDOW_H
